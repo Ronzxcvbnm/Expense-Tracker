@@ -61,10 +61,30 @@
   <script>
     const API = "http://localhost:5000"; // adjust if needed
 
-    // If already logged in, go straight to dashboard
-    if (localStorage.getItem("token")) {
-      window.location.href = "dashboard.html";
+ async function validateToken() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${API}/api/transactions/summary`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.ok) {
+        window.location.href = "dashboard.html";
+      } else {
+        // token is invalid -> force logout
+        localStorage.removeItem("token");
+        localStorage.removeItem("userName");
+      }
+    } catch {
+      // backend not running or network error
+      localStorage.removeItem("token");
+      localStorage.removeItem("userName");
     }
+  }
+
+  validateToken();
 
     const tabLogin = document.getElementById("tabLogin");
     const tabRegister = document.getElementById("tabRegister");
