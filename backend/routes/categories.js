@@ -11,13 +11,17 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const cat = await Category.create({
-    userId: req.user.id,
-    name: req.body.name,
-    color: req.body.color || "#3B82F6",
-    icon: req.body.icon || "📁"
-  });
-  res.status(201).json(cat);
+  try {
+    const cat = await Category.create({
+      userId: req.user.id,
+      name: req.body.name,
+      color: req.body.color || "#3B82F6",
+      icon: req.body.icon || "📁"
+    });
+    res.status(201).json(cat);
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
 });
 
 router.delete("/:id", async (req, res) => {

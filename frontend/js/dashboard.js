@@ -1,9 +1,9 @@
-async function loadDashboard() {
+window.loadDashboard = async function () {
   await loadSummary();
   await loadRecentTransactions();
   await loadBudgets();
-  await loadCharts();
-}
+  await window.loadCharts();
+};
 
 async function loadSummary() {
   const res = await fetch(`${API_URL}/transactions/summary`, { headers: authHeaders() });
@@ -36,7 +36,7 @@ async function loadRecentTransactions() {
   });
 }
 
-async function loadAllTransactions() {
+window.loadAllTransactions = async function () {
   const res = await fetch(`${API_URL}/transactions`, { headers: authHeaders() });
   const txs = await res.json();
 
@@ -62,7 +62,7 @@ async function loadAllTransactions() {
     `;
     tbody.appendChild(row);
   });
-}
+};
 
 async function loadBudgets() {
   const res = await fetch(`${API_URL}/budgets`, { headers: authHeaders() });
@@ -71,7 +71,6 @@ async function loadBudgets() {
   const txRes = await fetch(`${API_URL}/transactions`, { headers: authHeaders() });
   const txs = await txRes.json();
 
-  // compute spent for each budget locally
   const budgetsWithSpent = budgets.map((b) => {
     const spent = txs
       .filter((t) => t.type === "expense" && t.category === b.category)
@@ -82,7 +81,7 @@ async function loadBudgets() {
   renderBudgets(budgetsWithSpent, "budgetCards");
 }
 
-async function loadManageBudgetPage() {
+window.loadManageBudgetPage = async function () {
   const res = await fetch(`${API_URL}/budgets`, { headers: authHeaders() });
   const budgets = await res.json();
 
@@ -97,42 +96,76 @@ async function loadManageBudgetPage() {
   });
 
   renderBudgets(budgetsWithSpent, "manageBudgetCards");
-}
+};
+
+window.loadCategoriesPage = async function () {
+  const res = await fetch(`${API_URL}/categories`, { headers: authHeaders() });
+  const categories = await res.json();
+
+  const grid = document.getElementById("categoriesGrid");
+  grid.innerHTML = "";
+
+  categories.forEach((cat) => {
+    const div = document.createElement("div");
+    div.className = "category-item";
+    div.style.borderLeftColor = cat.color;
+
+    div.innerHTML = `
+      <div class="category-info">
+        <span class="category-icon">${cat.icon}</span>
+        <div>
+          <div class="category-name">${cat.name}</div>
+          <div class="category-color">${cat.color}</div>
+        </div>
+      </div>
+      <button class="delete-category-btn" onclick="deleteCategory('${cat._id}')">
+        <i class="fas fa-trash"></i>
+      </button>
+    `;
+    grid.appendChild(div);
+  });
+};
 
 function renderBudgets(budgets, containerId) {
   const container = document.getElementById(containerId);
   container.innerHTML = "";
 
   budgets.forEach((b) => {
-    const remaining = Number(b.allocated || 0) - Number(b.spent || 0);
-    const percent = b.allocated > 0 ? (b.spent / b.allocated) * 100 : 0;
+    const allocated = Number(b.allocated || 0);
+    const spent = Number(b.spent || 0);
+    const remaining = allocated - spent;
+    const percent = allocated > 0 ? (spent / allocated) * 100 : 0;
 
     const card = document.createElement("div");
     card.className = "card budget-card";
+
     card.innerHTML = `
       <div class="budget-card-header">
         <h4>${b.category}</h4>
-        <button class="edit-budget-btn" onclick="editBudget('${b._id}', '${b.category}', ${b.allocated})">
+        <button class="edit-budget-btn" onclick="editBudget('${b._id}', '${b.category}', ${allocated})">
           <i class="fas fa-pencil"></i>
         </button>
       </div>
+
       <div class="budget-info">
-        <div class="budget-row"><span>Allocated:</span><span>$${Number(b.allocated || 0).toFixed(2)}</span></div>
-        <div class="budget-row"><span>Spent:</span><span class="amount-spent">$${Number(b.spent || 0).toFixed(2)}</span></div>
-        <div class="budget-row"><span>Remaining:</span><span class="amount-remaining">$${Number(remaining).toFixed(2)}</span></div>
+        <div class="budget-row"><span>Allocated:</span><span>$${allocated.toFixed(2)}</span></div>
+        <div class="budget-row"><span>Spent:</span><span class="amount-spent">$${spent.toFixed(2)}</span></div>
+        <div class="budget-row"><span>Remaining:</span><span class="amount-remaining">$${remaining.toFixed(2)}</span></div>
       </div>
+
       <div class="progress-bar">
         <div class="progress-fill blue" style="width:${Math.min(percent, 100)}%"></div>
       </div>
+
       <p class="progress-text">${percent.toFixed(0)}% used</p>
     `;
     container.appendChild(card);
   });
 }
 
-function editBudget(id, category, allocated) {
+window.editBudget = function (id, category, allocated) {
   document.getElementById("editBudgetId").value = id;
   document.getElementById("editBudgetCategory").textContent = category;
   document.getElementById("editBudgetAmount").value = allocated;
   openModal("editBudget");
-}
+};

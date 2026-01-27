@@ -1,10 +1,10 @@
 let spendingChart = null;
 let trendsChart = null;
 
-async function loadCharts() {
+window.loadCharts = async function () {
   await loadSpendingChart();
   await loadTrendsChart();
-}
+};
 
 async function loadSpendingChart() {
   const res = await fetch(`${API_URL}/transactions/spending-by-category`, { headers: authHeaders() });
@@ -18,7 +18,10 @@ async function loadSpendingChart() {
 
   spendingChart = new Chart(ctx, {
     type: "pie",
-    data: { labels, datasets: [{ data: values }] },
+    data: {
+      labels,
+      datasets: [{ data: values }]
+    },
     options: { responsive: true, maintainAspectRatio: false }
   });
 }

@@ -10,6 +10,7 @@ router.get("/", async (req, res) => {
   res.json(budgets);
 });
 
+// Create/update budget by category
 router.post("/", async (req, res) => {
   const { category, allocated } = req.body;
 

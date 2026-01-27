@@ -1,11 +1,12 @@
-const API_URL = "http://localhost:5000/api";
+// GLOBALS
+window.API_URL = "http://localhost:5000/api";
 
 const token = localStorage.getItem("token");
 if (!token) window.location.href = "index.html";
 
-function authHeaders(extra = {}) {
-  return { ...extra, Authorization: `Bearer ${token}` };
-}
+window.authHeaders = function (extra = {}) {
+  return { ...extra, Authorization: `Bearer ${localStorage.getItem("token")}` };
+};
 
 // Logout
 document.querySelector(".menu-item.logout").addEventListener("click", () => {
@@ -22,6 +23,7 @@ const pages = document.querySelectorAll(".page");
 menuItems.forEach((item) => {
   item.addEventListener("click", () => {
     const pageName = item.getAttribute("data-page");
+
     menuItems.forEach((mi) => mi.classList.remove("active"));
     pages.forEach((p) => p.classList.remove("active"));
 
@@ -32,6 +34,13 @@ menuItems.forEach((item) => {
   });
 });
 
+function loadPageData(pageName) {
+  if (pageName === "dashboard") window.loadDashboard();
+  if (pageName === "transactions") window.loadAllTransactions();
+  if (pageName === "manage-budget") window.loadManageBudgetPage();
+  if (pageName === "add-category") window.loadCategoriesPage();
+}
+
 // Modals
 const modals = {
   addExpense: document.getElementById("addExpenseModal"),
@@ -40,8 +49,8 @@ const modals = {
   addSavings: document.getElementById("addSavingsModal")
 };
 
-function openModal(name) { modals[name].classList.add("active"); }
-function closeModal(name) { modals[name].classList.remove("active"); }
+window.openModal = function (name) { modals[name].classList.add("active"); };
+window.closeModal = function (name) { modals[name].classList.remove("active"); };
 
 document.querySelectorAll(".close, .close-modal").forEach((btn) => {
   btn.addEventListener("click", function () {
@@ -75,6 +84,7 @@ async function loadCategoriesIntoSelect() {
 
   const select = document.getElementById("expenseCategory");
   select.innerHTML = `<option value="">Select Category</option>`;
+
   categories.forEach((c) => {
     const opt = document.createElement("option");
     opt.value = c.name;
@@ -101,12 +111,13 @@ document.getElementById("addExpenseForm").addEventListener("submit", async (e) =
     body: JSON.stringify(data)
   });
 
-  if (!res.ok) return alert("Failed to add expense");
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to add expense");
 
   closeModal("addExpense");
   e.target.reset();
   document.getElementById("expenseDate").value = today;
-  loadDashboard();
+  window.loadDashboard();
 });
 
 // Add Income
@@ -127,12 +138,13 @@ document.getElementById("inputIncomeForm").addEventListener("submit", async (e) 
     body: JSON.stringify(data)
   });
 
-  if (!res.ok) return alert("Failed to add income");
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to add income");
 
   closeModal("inputIncome");
   e.target.reset();
   document.getElementById("incomeDate").value = today;
-  loadDashboard();
+  window.loadDashboard();
 });
 
 // Add Savings (expense)
@@ -153,12 +165,13 @@ document.getElementById("addSavingsForm").addEventListener("submit", async (e) =
     body: JSON.stringify(data)
   });
 
-  if (!res.ok) return alert("Failed to add savings");
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to add savings");
 
   closeModal("addSavings");
   e.target.reset();
   document.getElementById("savingsDate").value = today;
-  loadDashboard();
+  window.loadDashboard();
 });
 
 // Edit Budget submit
@@ -174,10 +187,11 @@ document.getElementById("editBudgetForm").addEventListener("submit", async (e) =
     body: JSON.stringify({ allocated })
   });
 
-  if (!res.ok) return alert("Failed to update budget");
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to update budget");
 
   closeModal("editBudget");
-  loadDashboard();
+  window.loadDashboard();
 });
 
 // Add Category
@@ -196,13 +210,15 @@ document.getElementById("addCategoryForm").addEventListener("submit", async (e) 
     body: JSON.stringify(data)
   });
 
-  if (!res.ok) return alert("Failed to add category");
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to add category");
 
   e.target.reset();
-  loadCategoriesPage();
+  window.loadCategoriesPage();
 });
 
-async function deleteCategory(id) {
+// Delete helpers (global)
+window.deleteCategory = async function (id) {
   if (!confirm("Delete category?")) return;
 
   const res = await fetch(`${API_URL}/categories/${id}`, {
@@ -210,11 +226,13 @@ async function deleteCategory(id) {
     headers: authHeaders()
   });
 
-  if (!res.ok) return alert("Failed to delete category");
-  loadCategoriesPage();
-}
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to delete category");
 
-async function deleteTransaction(id) {
+  window.loadCategoriesPage();
+};
+
+window.deleteTransaction = async function (id) {
   if (!confirm("Delete transaction?")) return;
 
   const res = await fetch(`${API_URL}/transactions/${id}`, {
@@ -222,21 +240,12 @@ async function deleteTransaction(id) {
     headers: authHeaders()
   });
 
-  if (!res.ok) return alert("Failed to delete transaction");
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to delete transaction");
 
-  loadAllTransactions();
-  loadDashboard();
-}
-
-window.deleteCategory = deleteCategory;
-window.deleteTransaction = deleteTransaction;
-
-function loadPageData(pageName) {
-  if (pageName === "dashboard") loadDashboard();
-  if (pageName === "transactions") loadAllTransactions();
-  if (pageName === "manage-budget") loadManageBudgetPage();
-  if (pageName === "add-category") loadCategoriesPage();
-}
+  window.loadAllTransactions();
+  window.loadDashboard();
+};
 
 // Export CSV
 document.getElementById("exportData").addEventListener("click", async () => {
@@ -266,16 +275,14 @@ document.getElementById("exportData").addEventListener("click", async () => {
   URL.revokeObjectURL(url);
 });
 
-// Export PDF quickly
-document.getElementById("exportTransactionsBtn")?.addEventListener("click", () => {
-  window.print();
-});
+// Export PDF quick
+document.getElementById("exportTransactionsBtn")?.addEventListener("click", () => window.print());
 
-// Initial load
+// Seed default categories per-user (NO budgets, NO money)
 document.addEventListener("DOMContentLoaded", async () => {
-  // OPTIONAL: seed default categories once per user (no budgets!)
   const catsRes = await fetch(`${API_URL}/categories`, { headers: authHeaders() });
   const cats = await catsRes.json();
+
   if (cats.length === 0) {
     const defaults = [
       { name: "Food", color: "#3B82F6", icon: "🍔" },
@@ -283,6 +290,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       { name: "Loan", color: "#EF4444", icon: "💰" },
       { name: "Savings", color: "#F59E0B", icon: "💎" }
     ];
+
     for (const c of defaults) {
       await fetch(`${API_URL}/categories`, {
         method: "POST",
@@ -292,5 +300,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  loadDashboard();
+  window.loadDashboard();
 });
