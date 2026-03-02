@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Expense Tracker - Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -13,9 +16,12 @@
     <nav class="top-nav">
         <div class="nav-container">
             <h1 class="logo">Expense Tracker</h1>
-            <div class="user-profile">
-                <i class="fas fa-user-circle"></i>
-                <span>User Profile</span>
+            <div class="user-profile" id="openProfileBtn" title="Open Profile Settings">
+                <div class="profile-avatar-wrap">
+                    <img id="profileAvatar" class="profile-avatar is-hidden" alt="Profile">
+                    <i id="profileAvatarFallback" class="fas fa-user-circle"></i>
+                </div>
+                <span id="profileName">User Profile</span>
             </div>
         </div>
     </nav>
@@ -358,6 +364,53 @@
                     <button type="button" class="btn btn-secondary close-modal">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Profile Settings</h3>
+                <span class="close">&times;</span>
+            </div>
+
+            <form id="profilePictureForm">
+                <div class="profile-preview-row">
+                    <div class="profile-avatar-large-wrap">
+                        <img id="profileAvatarLarge" class="profile-avatar-large is-hidden" alt="Profile">
+                        <i id="profileAvatarLargeFallback" class="fas fa-user-circle"></i>
+                    </div>
+                    <p class="profile-hint">Upload a new profile picture (PNG, JPG, or WEBP up to 2MB).</p>
+                </div>
+                <div class="form-group">
+                    <label>Profile Picture</label>
+                    <input id="profileImageInput" type="file" accept="image/png,image/jpeg,image/webp">
+                </div>
+                <div class="modal-buttons">
+                    <button id="uploadPictureBtn" type="submit" class="btn btn-primary">Upload Picture</button>
+                </div>
+            </form>
+
+            <form id="changePasswordForm">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input id="currentPassword" type="password" placeholder="Leave blank if account has no password">
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input id="newPassword" type="password" minlength="6" required>
+                </div>
+                <div class="form-group">
+                    <label>Confirm New Password</label>
+                    <input id="confirmNewPassword" type="password" minlength="6" required>
+                </div>
+                <div class="modal-buttons">
+                    <button id="changePasswordBtn" type="submit" class="btn btn-success">Change Password</button>
+                </div>
+            </form>
+
+            <p id="profileMsg" class="profile-msg"></p>
         </div>
     </div>
 

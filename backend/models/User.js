@@ -25,6 +25,11 @@ const userSchema = new mongoose.Schema(
       type: String      // for Google OAuth users
     },
 
+    profileImage: {
+      type: String,
+      default: ""       // data URL or external image URL
+    },
+
     role: {
       type: String,
       enum: ["admin", "user"],

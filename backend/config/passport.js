@@ -18,8 +18,12 @@ passport.use(
             googleId: profile.id,
             name: profile.displayName,
             email: profile.emails[0].value,
+            profileImage: (profile.photos && profile.photos[0] && profile.photos[0].value) || "",
             role: "user",
           });
+        } else if (!user.profileImage && profile.photos && profile.photos[0] && profile.photos[0].value) {
+          user.profileImage = profile.photos[0].value;
+          await user.save();
         }
 
         return done(null, user);
