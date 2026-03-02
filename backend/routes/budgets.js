@@ -12,22 +12,38 @@ router.get("/", async (req, res) => {
 
 // Create/update budget by category
 router.post("/", async (req, res) => {
-  const { category, allocated } = req.body;
+  try {
+    const category = String(req.body.category || "").trim();
+    const allocated = Number(req.body.allocated || 0);
 
-  const budget = await Budget.findOneAndUpdate(
-    { userId: req.user.id, category },
-    { $set: { allocated: Number(allocated || 0) } },
-    { new: true, upsert: true }
-  );
+    if (!category) return res.status(400).json({ message: "Category is required" });
+    if (!Number.isFinite(allocated) || allocated < 0) {
+      return res.status(400).json({ message: "Allocated amount must be 0 or greater" });
+    }
 
-  res.status(201).json(budget);
+    const budget = await Budget.findOneAndUpdate(
+      { userId: req.user.id, category },
+      { $set: { allocated } },
+      { new: true, upsert: true }
+    );
+
+    res.status(201).json(budget);
+  } catch (e) {
+    res.status(400).json({ message: e.message });
+  }
 });
 
 router.put("/:id", async (req, res) => {
   const budget = await Budget.findOne({ _id: req.params.id, userId: req.user.id });
   if (!budget) return res.status(404).json({ message: "Budget not found" });
 
-  if (req.body.allocated !== undefined) budget.allocated = Number(req.body.allocated);
+  if (req.body.allocated !== undefined) {
+    const allocated = Number(req.body.allocated);
+    if (!Number.isFinite(allocated) || allocated < 0) {
+      return res.status(400).json({ message: "Allocated amount must be 0 or greater" });
+    }
+    budget.allocated = allocated;
+  }
   const saved = await budget.save();
   res.json(saved);
 });

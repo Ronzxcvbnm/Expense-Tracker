@@ -9,13 +9,20 @@ router.use(auth);
 router.get("/summary", async (req, res) => {
   const txs = await Transaction.find({ userId: req.user.id });
 
-  let income = 0, expenses = 0;
+  let income = 0, expenses = 0, savings = 0;
   for (const t of txs) {
-    if (t.type === "income") income += Number(t.amount || 0);
-    else expenses += Number(t.amount || 0);
+    const amount = Number(t.amount || 0);
+    if (t.type === "income") {
+      income += amount;
+    } else {
+      expenses += amount;
+      if (String(t.category || "").toLowerCase() === "savings") {
+        savings += amount;
+      }
+    }
   }
 
-  res.json({ income, expenses, balance: income - expenses });
+  res.json({ income, expenses, savings, balance: income - expenses });
 });
 
 // Spending by category (pie chart)

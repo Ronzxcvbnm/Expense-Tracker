@@ -292,6 +292,11 @@ body {
     color: var(--danger-red);
 }
 
+.card-icon.yellow {
+    background-color: #FEF3C7;
+    color: var(--warning-yellow);
+}
+
 .summary-card h3 {
     font-size: 14px;
     color: var(--gray-600);

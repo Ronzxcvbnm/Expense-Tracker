@@ -1,5 +1,23 @@
 // GLOBALS
 window.API_URL = "http://localhost:5000/api";
+const phpFormatter = new Intl.NumberFormat("en-PH", {
+  style: "currency",
+  currency: "PHP",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+window.formatCurrency = function (value) {
+  return phpFormatter.format(Number(value || 0));
+};
+
+window.formatSignedCurrency = function (value) {
+  const amount = Number(value || 0);
+  const abs = window.formatCurrency(Math.abs(amount));
+  if (amount > 0) return `+${abs}`;
+  if (amount < 0) return `-${abs}`;
+  return abs;
+};
 
 const token = localStorage.getItem("token");
 if (!token) window.location.href = "index.html";
@@ -192,6 +210,30 @@ document.getElementById("editBudgetForm").addEventListener("submit", async (e) =
 
   closeModal("editBudget");
   window.loadDashboard();
+});
+
+// Set Budget (create/update by category)
+document.getElementById("setBudgetForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const category = document.getElementById("budgetCategory").value;
+  const allocated = Number(document.getElementById("budgetAllocated").value);
+
+  if (!category) return alert("Please select a category");
+  if (!Number.isFinite(allocated) || allocated < 0) return alert("Please enter a valid budget amount");
+
+  const res = await fetch(`${API_URL}/budgets`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ category, allocated })
+  });
+
+  const out = await res.json();
+  if (!res.ok) return alert(out.message || "Failed to save budget");
+
+  e.target.reset();
+  if (typeof window.loadManageBudgetPage === "function") await window.loadManageBudgetPage();
+  if (typeof window.loadDashboard === "function") await window.loadDashboard();
 });
 
 // Add Category
