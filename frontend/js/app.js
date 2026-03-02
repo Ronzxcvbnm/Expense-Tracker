@@ -457,10 +457,17 @@ window.deleteCategory = async function (id) {
     headers: authHeaders()
   });
 
-  const out = await res.json();
+  let out = {};
+  try {
+    out = await res.json();
+  } catch {
+    out = {};
+  }
   if (!res.ok) return alert(out.message || "Failed to delete category");
 
   window.loadCategoriesPage();
+  if (typeof window.loadManageBudgetPage === "function") await window.loadManageBudgetPage();
+  if (typeof window.loadDashboard === "function") await window.loadDashboard();
 };
 
 window.deleteTransaction = async function (id) {

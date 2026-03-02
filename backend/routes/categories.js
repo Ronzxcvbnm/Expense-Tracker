@@ -1,6 +1,9 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const Category = require("../models/Category");
+const Budget = require("../models/Budget");
+const Transaction = require("../models/Transaction");
 const auth = require("../middleware/auth");
 
 router.use(auth);
@@ -25,9 +28,34 @@ router.post("/", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  const deleted = await Category.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
-  if (!deleted) return res.status(404).json({ message: "Category not found" });
-  res.json({ message: "Category deleted" });
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid category id" });
+    }
+
+    const category = await Category.findOne({ _id: id, userId: req.user.id });
+    if (!category) return res.status(404).json({ message: "Category not found" });
+
+    await Category.deleteOne({ _id: category._id, userId: req.user.id });
+
+    const [budgetDeleteResult, txUpdateResult] = await Promise.all([
+      Budget.deleteMany({ userId: req.user.id, category: category.name }),
+      Transaction.updateMany(
+        { userId: req.user.id, category: category.name },
+        { $set: { category: "Uncategorized" } }
+      )
+    ]);
+
+    res.json({
+      message: "Category deleted",
+      category: category.name,
+      removedBudgets: budgetDeleteResult.deletedCount || 0,
+      updatedTransactions: txUpdateResult.modifiedCount || 0
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message || "Failed to delete category" });
+  }
 });
 
 module.exports = router;
