@@ -1,41 +1,66 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const router = express.Router();
+const { body, param } = require("express-validator");
 const Category = require("../models/Category");
 const Budget = require("../models/Budget");
 const Transaction = require("../models/Transaction");
 const auth = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const asyncHandler = require("../middleware/asyncHandler");
+const HttpError = require("../utils/httpError");
+
+const router = express.Router();
 
 router.use(auth);
 
-router.get("/", async (req, res) => {
-  const cats = await Category.find({ userId: req.user.id }).sort({ name: 1 });
-  res.json(cats);
-});
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const categories = await Category.find({ userId: req.user.id }).sort({ name: 1 });
+    res.json(categories);
+  })
+);
 
-router.post("/", async (req, res) => {
-  try {
-    const cat = await Category.create({
+router.post(
+  "/",
+  [
+    body("name")
+      .trim()
+      .notEmpty()
+      .withMessage("Category name is required")
+      .isLength({ max: 60 })
+      .withMessage("Category name must be at most 60 characters"),
+    body("color")
+      .optional()
+      .matches(/^#([A-Fa-f0-9]{6})$/)
+      .withMessage("Color must be a valid hex code"),
+    body("icon")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 4 })
+      .withMessage("Icon must be 1 to 4 characters")
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const category = await Category.create({
       userId: req.user.id,
       name: req.body.name,
       color: req.body.color || "#3B82F6",
-      icon: req.body.icon || "📁"
+      icon: req.body.icon || "\uD83D\uDCC1"
     });
-    res.status(201).json(cat);
-  } catch (e) {
-    res.status(400).json({ message: e.message });
-  }
-});
 
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid category id" });
+    res.status(201).json(category);
+  })
+);
+
+router.delete(
+  "/:id",
+  [param("id").isMongoId().withMessage("Invalid category id")],
+  validate,
+  asyncHandler(async (req, res) => {
+    const category = await Category.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!category) {
+      throw new HttpError(404, "Category not found");
     }
-
-    const category = await Category.findOne({ _id: id, userId: req.user.id });
-    if (!category) return res.status(404).json({ message: "Category not found" });
 
     await Category.deleteOne({ _id: category._id, userId: req.user.id });
 
@@ -53,9 +78,7 @@ router.delete("/:id", async (req, res) => {
       removedBudgets: budgetDeleteResult.deletedCount || 0,
       updatedTransactions: txUpdateResult.modifiedCount || 0
     });
-  } catch (e) {
-    res.status(500).json({ message: e.message || "Failed to delete category" });
-  }
-});
+  })
+);
 
 module.exports = router;

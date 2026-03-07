@@ -1,20 +1,26 @@
 const jwt = require("jsonwebtoken");
+const HttpError = require("../utils/httpError");
 
-module.exports = function (req, res, next) {
+module.exports = function auth(req, res, next) {
   const authHeader = req.header("Authorization");
-
   if (!authHeader) {
-    return res.status(401).json({ message: "No token, authorization denied" });
+    return next(new HttpError(401, "No token, authorization denied"));
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return next(new HttpError(401, "No token, authorization denied"));
+  }
+
+  if (!process.env.JWT_SECRET) {
+    return next(new HttpError(500, "JWT secret is not configured"));
   }
 
   try {
-    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Normalize payload so downstream routes can safely use req.user.id.
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
     const normalizedId = decoded.id || decoded.userId || decoded._id;
     if (!normalizedId) {
-      return res.status(401).json({ message: "Token payload missing user id" });
+      return next(new HttpError(401, "Token payload missing user id"));
     }
 
     req.user = {
@@ -22,8 +28,8 @@ module.exports = function (req, res, next) {
       id: normalizedId,
       userId: normalizedId
     };
-    next();
+    return next();
   } catch (err) {
-    res.status(401).json({ message: "Token is not valid" });
+    return next(new HttpError(401, "Token is not valid"));
   }
 };

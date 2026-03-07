@@ -7,22 +7,38 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "/api/auth/google/callback",
+      callbackURL: "/api/auth/google/callback"
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
+        const email = profile.emails?.[0]?.value?.toLowerCase();
+        if (!email) {
+          return done(new Error("Google account did not return an email"), null);
+        }
+
         let user = await User.findOne({ googleId: profile.id });
+        if (!user) {
+          user = await User.findOne({ email });
+        }
+
+        const photoUrl = profile.photos?.[0]?.value || "";
 
         if (!user) {
           user = await User.create({
             googleId: profile.id,
-            name: profile.displayName,
-            email: profile.emails[0].value,
-            profileImage: (profile.photos && profile.photos[0] && profile.photos[0].value) || "",
-            role: "user",
+            name: profile.displayName || "Google User",
+            email,
+            profileImage: photoUrl,
+            role: "user"
           });
-        } else if (!user.profileImage && profile.photos && profile.photos[0] && profile.photos[0].value) {
-          user.profileImage = profile.photos[0].value;
+        } else {
+          user.googleId = profile.id;
+          if (!user.profileImagePath && photoUrl) {
+            user.profileImage = photoUrl;
+          }
+          if (!user.name && profile.displayName) {
+            user.name = profile.displayName;
+          }
           await user.save();
         }
 

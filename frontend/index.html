@@ -294,15 +294,17 @@
 
     // Handle OAuth redirect from backend and persist token in localStorage.
     (function handleOAuthRedirect() {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get("token");
+      const queryParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const token = hashParams.get("token") || queryParams.get("token");
       if (!token) return;
 
       localStorage.setItem("token", token);
-      const name = params.get("name");
+      const name = hashParams.get("name") || queryParams.get("name");
       if (name) localStorage.setItem("userName", name);
       localStorage.removeItem("userProfileImage");
 
+      window.history.replaceState({}, document.title, window.location.pathname);
       window.location.href = "dashboard.html";
     })();
 

@@ -1,68 +1,87 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const router = express.Router();
+const { body, param } = require("express-validator");
 const Budget = require("../models/Budget");
 const auth = require("../middleware/auth");
+const validate = require("../middleware/validate");
+const asyncHandler = require("../middleware/asyncHandler");
+const HttpError = require("../utils/httpError");
+
+const router = express.Router();
 
 router.use(auth);
 
-router.get("/", async (req, res) => {
-  const budgets = await Budget.find({ userId: req.user.id }).sort({ category: 1 });
-  res.json(budgets);
-});
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const budgets = await Budget.find({ userId: req.user.id }).sort({ category: 1 });
+    res.json(budgets);
+  })
+);
 
-// Create/update budget by category
-router.post("/", async (req, res) => {
-  try {
-    const category = String(req.body.category || "").trim();
-    const allocated = Number(req.body.allocated || 0);
-
-    if (!category) return res.status(400).json({ message: "Category is required" });
-    if (!Number.isFinite(allocated) || allocated < 0) {
-      return res.status(400).json({ message: "Allocated amount must be 0 or greater" });
-    }
-
+router.post(
+  "/",
+  [
+    body("category")
+      .trim()
+      .notEmpty()
+      .withMessage("Category is required")
+      .isLength({ max: 60 })
+      .withMessage("Category must be at most 60 characters"),
+    body("allocated")
+      .isFloat({ min: 0 })
+      .withMessage("Allocated amount must be 0 or greater")
+      .toFloat()
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
     const budget = await Budget.findOneAndUpdate(
-      { userId: req.user.id, category },
-      { $set: { allocated } },
-      { new: true, upsert: true }
+      { userId: req.user.id, category: req.body.category },
+      { $set: { allocated: req.body.allocated } },
+      { new: true, upsert: true, runValidators: true }
     );
 
     res.status(201).json(budget);
-  } catch (e) {
-    res.status(400).json({ message: e.message });
-  }
-});
+  })
+);
 
-router.put("/:id", async (req, res) => {
-  const budget = await Budget.findOne({ _id: req.params.id, userId: req.user.id });
-  if (!budget) return res.status(404).json({ message: "Budget not found" });
-
-  if (req.body.allocated !== undefined) {
-    const allocated = Number(req.body.allocated);
-    if (!Number.isFinite(allocated) || allocated < 0) {
-      return res.status(400).json({ message: "Allocated amount must be 0 or greater" });
-    }
-    budget.allocated = allocated;
-  }
-  const saved = await budget.save();
-  res.json(saved);
-});
-
-router.delete("/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid budget id" });
+router.put(
+  "/:id",
+  [
+    param("id").isMongoId().withMessage("Invalid budget id"),
+    body("allocated")
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage("Allocated amount must be 0 or greater")
+      .toFloat()
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const budget = await Budget.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!budget) {
+      throw new HttpError(404, "Budget not found");
     }
 
-    const deleted = await Budget.findOneAndDelete({ _id: id, userId: req.user.id });
-    if (!deleted) return res.status(404).json({ message: "Budget not found" });
+    if (req.body.allocated !== undefined) {
+      budget.allocated = req.body.allocated;
+    }
+
+    const saved = await budget.save();
+    res.json(saved);
+  })
+);
+
+router.delete(
+  "/:id",
+  [param("id").isMongoId().withMessage("Invalid budget id")],
+  validate,
+  asyncHandler(async (req, res) => {
+    const deleted = await Budget.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!deleted) {
+      throw new HttpError(404, "Budget not found");
+    }
 
     res.json({ message: "Budget deleted" });
-  } catch (e) {
-    res.status(500).json({ message: e.message || "Failed to delete budget" });
-  }
-});
+  })
+);
 
 module.exports = router;
