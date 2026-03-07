@@ -1,8 +1,6 @@
 # Expense Tracker
 
-<<<<<<< HEAD
 Full-stack expense tracker built with HTML/CSS/JavaScript, Node.js, Express, and MongoDB.
-=======
 
 <img width="1916" height="910" alt="Login" src="https://github.com/user-attachments/assets/c250d841-6145-425c-8a72-6ff48607b038" />
 <img width="1913" height="911" alt="Dashboard" src="https://github.com/user-attachments/assets/a0a34901-ff50-482b-9006-7459698d9614" />
@@ -34,20 +32,6 @@ npm install
 
 2. Create `backend/.env`:
 
-```env
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
-SESSION_SECRET=your_session_secret
-FRONTEND_URL=http://localhost:5000
-CORS_ORIGIN=http://localhost:5000
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=your_service_account_email
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-```
 
 3. Run the server:
 
