@@ -1,4 +1,6 @@
 const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -14,6 +16,137 @@ const { getStorageBucket } = require("../config/firebase");
 
 const router = express.Router();
 const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+const LOCAL_STORAGE_PREFIX = "local:";
+const LOCAL_UPLOADS_DIR = path.join(__dirname, "..", "uploads");
+const PROFILE_IMAGE_DIR = "profile-images";
+
+function getProfileImageStorageMode() {
+  const mode = String(process.env.PROFILE_IMAGE_STORAGE || "auto")
+    .trim()
+    .toLowerCase();
+
+  if (["local", "firebase", "auto"].includes(mode)) {
+    return mode;
+  }
+
+  return "auto";
+}
+
+function toPosixPath(value) {
+  return String(value || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
+}
+
+function isLocalStoragePath(objectPath) {
+  return String(objectPath || "").startsWith(LOCAL_STORAGE_PREFIX);
+}
+
+function getLocalRelativePath(objectPath) {
+  return toPosixPath(String(objectPath || "").slice(LOCAL_STORAGE_PREFIX.length));
+}
+
+function getPublicBaseUrl(req) {
+  const configuredBaseUrl = String(process.env.BACKEND_PUBLIC_URL || "").trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/+$/, "");
+  }
+
+  return `${req.protocol}://${req.get("host")}`;
+}
+
+function buildLocalProfileImageUrl(req, objectPath) {
+  const relativePath = getLocalRelativePath(objectPath);
+  if (!relativePath) {
+    return "";
+  }
+
+  return `${getPublicBaseUrl(req)}/uploads/${relativePath}`;
+}
+
+async function storeProfileImageLocally(req, userId, imageBuffer, extension) {
+  const relativePath = path.posix.join(
+    PROFILE_IMAGE_DIR,
+    String(userId),
+    `${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${extension}`
+  );
+  const absolutePath = path.join(LOCAL_UPLOADS_DIR, ...relativePath.split("/"));
+
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.writeFile(absolutePath, imageBuffer);
+
+  return {
+    objectPath: `${LOCAL_STORAGE_PREFIX}${relativePath}`,
+    publicUrl: `${getPublicBaseUrl(req)}/uploads/${relativePath}`
+  };
+}
+
+async function deleteLocalProfileImage(objectPath) {
+  const relativePath = getLocalRelativePath(objectPath);
+  if (!relativePath) {
+    return;
+  }
+
+  const absolutePath = path.join(LOCAL_UPLOADS_DIR, ...relativePath.split("/"));
+  try {
+    await fs.unlink(absolutePath);
+  } catch (err) {
+    if (err?.code !== "ENOENT") {
+      throw err;
+    }
+  }
+}
+
+function mapFirebaseStorageError(err) {
+  const statusCode = Number(err?.code);
+  const errMessage = String(err?.message || "");
+
+  if (statusCode === 404 || /bucket/i.test(errMessage)) {
+    return new HttpError(
+      503,
+      "Firebase storage bucket was not found. Check FIREBASE_STORAGE_BUCKET and ensure Storage is enabled in Firebase."
+    );
+  }
+
+  if (statusCode === 401 || statusCode === 403) {
+    return new HttpError(
+      503,
+      "Firebase storage access was denied. Verify service account permissions and Firebase project billing plan."
+    );
+  }
+
+  return new HttpError(503, `Firebase storage initialization failed: ${errMessage || "unknown error"}`);
+}
+
+async function resolveProfileImageStorage() {
+  const mode = getProfileImageStorageMode();
+  if (mode === "local") {
+    return { provider: "local", bucket: null };
+  }
+
+  try {
+    const bucket = await getStorageBucket();
+    if (bucket) {
+      return { provider: "firebase", bucket };
+    }
+
+    if (mode === "firebase") {
+      throw new HttpError(
+        503,
+        "Firebase storage is not configured. Set FIREBASE_STORAGE_BUCKET and ensure the bucket exists."
+      );
+    }
+  } catch (err) {
+    if (mode === "firebase") {
+      if (err instanceof HttpError) {
+        throw err;
+      }
+      throw mapFirebaseStorageError(err);
+    }
+  }
+
+  return { provider: "local", bucket: null };
+}
 
 function signToken(user) {
   if (!process.env.JWT_SECRET) {
@@ -27,12 +160,19 @@ function signToken(user) {
   );
 }
 
-async function getProfileImageUrl(user) {
+async function getProfileImageUrl(user, req) {
   if (user.profileImagePath) {
+    if (isLocalStoragePath(user.profileImagePath)) {
+      if (req) {
+        return buildLocalProfileImageUrl(req, user.profileImagePath);
+      }
+      return user.profileImage || "";
+    }
+
     try {
-      const bucket = getStorageBucket();
+      const bucket = await getStorageBucket();
       if (!bucket) {
-        return "";
+        return user.profileImage || "";
       }
 
       const [url] = await bucket.file(user.profileImagePath).getSignedUrl({
@@ -49,13 +189,13 @@ async function getProfileImageUrl(user) {
   return user.profileImage || "";
 }
 
-async function toPublicUser(user) {
+async function toPublicUser(user, req) {
   return {
     id: user._id,
     name: user.name,
     email: user.email,
     role: user.role,
-    profileImage: await getProfileImageUrl(user)
+    profileImage: await getProfileImageUrl(user, req)
   };
 }
 
@@ -96,7 +236,7 @@ router.post(
     const token = signToken(user);
     res.status(201).json({
       token,
-      user: await toPublicUser(user)
+      user: await toPublicUser(user, req)
     });
   })
 );
@@ -134,7 +274,7 @@ router.post(
     const token = signToken(user);
     res.json({
       token,
-      user: await toPublicUser(user)
+      user: await toPublicUser(user, req)
     });
   })
 );
@@ -150,7 +290,7 @@ router.get(
       throw new HttpError(404, "User not found");
     }
 
-    res.json(await toPublicUser(user));
+    res.json(await toPublicUser(user, req));
   })
 );
 
@@ -201,10 +341,7 @@ router.put(
   [body("imageData").isString().notEmpty().withMessage("Image data is required")],
   validate,
   asyncHandler(async (req, res) => {
-    const bucket = getStorageBucket();
-    if (!bucket) {
-      throw new HttpError(503, "Firebase storage is not configured");
-    }
+    const { provider, bucket } = await resolveProfileImageStorage();
 
     const user = await User.findById(req.user.id).select(
       "name email role profileImage profileImagePath"
@@ -234,33 +371,46 @@ router.put(
     };
 
     const extension = extensionMap[mimeType];
-    const objectPath = `profile-images/${req.user.id}/${Date.now()}-${crypto
-      .randomBytes(8)
-      .toString("hex")}.${extension}`;
+    let objectPath = "";
+    let profileImage = "";
 
-    await bucket.file(objectPath).save(imageBuffer, {
-      resumable: false,
-      metadata: {
-        contentType: mimeType,
-        cacheControl: "private, max-age=0, no-transform"
-      }
-    });
+    if (provider === "firebase") {
+      objectPath = `profile-images/${req.user.id}/${Date.now()}-${crypto
+        .randomBytes(8)
+        .toString("hex")}.${extension}`;
+
+      await bucket.file(objectPath).save(imageBuffer, {
+        resumable: false,
+        metadata: {
+          contentType: mimeType,
+          cacheControl: "private, max-age=0, no-transform"
+        }
+      });
+    } else {
+      const stored = await storeProfileImageLocally(req, req.user.id, imageBuffer, extension);
+      objectPath = stored.objectPath;
+      profileImage = stored.publicUrl;
+    }
 
     const previousPath = user.profileImagePath;
     user.profileImagePath = objectPath;
-    user.profileImage = "";
+    user.profileImage = profileImage;
     await user.save();
 
     if (previousPath && previousPath !== objectPath) {
-      bucket
-        .file(previousPath)
-        .delete({ ignoreNotFound: true })
-        .catch(() => {});
+      if (isLocalStoragePath(previousPath)) {
+        deleteLocalProfileImage(previousPath).catch(() => {});
+      } else if (bucket) {
+        bucket
+          .file(previousPath)
+          .delete({ ignoreNotFound: true })
+          .catch(() => {});
+      }
     }
 
     res.json({
       message: "Profile picture updated successfully",
-      user: await toPublicUser(user)
+      user: await toPublicUser(user, req)
     });
   })
 );
@@ -304,7 +454,7 @@ router.patch(
 
     res.json({
       message: "User role updated",
-      user: await toPublicUser(user)
+      user: await toPublicUser(user, req)
     });
   })
 );

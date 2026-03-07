@@ -29,6 +29,21 @@ const profileAvatarLargeEl = document.getElementById("profileAvatarLarge");
 const profileAvatarLargeFallbackEl = document.getElementById("profileAvatarLargeFallback");
 const profileMsgEl = document.getElementById("profileMsg");
 
+function bindAvatarErrorFallback(imageEl, fallbackEl) {
+  if (!imageEl || imageEl.dataset.errorFallbackBound === "1") return;
+
+  imageEl.dataset.errorFallbackBound = "1";
+  imageEl.addEventListener("error", () => {
+    imageEl.classList.add("is-hidden");
+    if (fallbackEl) {
+      fallbackEl.classList.remove("is-hidden");
+    }
+  });
+}
+
+bindAvatarErrorFallback(profileAvatarEl, profileAvatarFallbackEl);
+bindAvatarErrorFallback(profileAvatarLargeEl, profileAvatarLargeFallbackEl);
+
 function setProfileName(name) {
   if (!profileNameEl) return;
   profileNameEl.textContent = name || "User Profile";
