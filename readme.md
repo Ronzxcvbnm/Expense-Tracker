@@ -10,7 +10,6 @@ Full-stack expense tracker built with HTML/CSS/JavaScript, Node.js, Express, and
 <img width="1916" height="908" alt="Profile setting" src="https://github.com/user-attachments/assets/ec4f747b-549f-4576-b4c9-23f7b5ea685f" />
 
 A complete expense tracking web application built with HTML, CSS, JavaScript, Node.js, Express, and MongoDB.
->>>>>>> 876b8ef916b26c707aad85e075beed6199b348a8
 
 ## Core Features
 - Expense and income tracking
@@ -45,5 +44,3 @@ npm run dev
 ## Milestone 2 Documents
 - Integration plan: `docs/milestone-2-integration-plan.md`
 - Basic testing results template: `docs/basic-testing-results.md`
-=======
->>>>>>> 876b8ef916b26c707aad85e075beed6199b348a8
