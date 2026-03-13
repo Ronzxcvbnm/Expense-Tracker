@@ -17,7 +17,7 @@ A complete expense tracking web application built with HTML, CSS, JavaScript, No
 - Category management
 - Dashboard charts and export
 - Google OAuth + JWT authentication
-- Profile image upload (local / Firebase Storage / AWS S3)
+- Profile image upload (AWS S3 signed URLs)
 - RBAC-protected admin endpoints
 
 ## Backend Setup
@@ -42,9 +42,8 @@ Fill in at least:
 - `SESSION_SECRET`
 
 For profile images:
-- Local (default): `PROFILE_IMAGE_STORAGE=local`
-- AWS S3: `PROFILE_IMAGE_STORAGE=s3` + set `AWS_S3_BUCKET` and `AWS_REGION` (and credentials if needed)
-- Firebase: `PROFILE_IMAGE_STORAGE=firebase` + set Firebase env vars
+- AWS S3 (recommended): `PROFILE_IMAGE_STORAGE=s3` + set `AWS_S3_BUCKET` and `AWS_REGION` (and credentials if needed)
+- Firebase (optional): `PROFILE_IMAGE_STORAGE=firebase` + set Firebase env vars
 
 3. Run the server:
 

@@ -83,14 +83,6 @@ app.use(
 app.use(passport.initialize());
 
 app.use(express.static(path.join(__dirname, "..", "frontend")));
-app.use(
-  "/uploads",
-  (req, res, next) => {
-    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-    next();
-  },
-  express.static(path.join(__dirname, "uploads"))
-);
 
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/transactions", require("./routes/transactions"));

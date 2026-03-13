@@ -1,6 +1,4 @@
 const crypto = require("crypto");
-const fs = require("fs/promises");
-const path = require("path");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -24,7 +22,6 @@ const router = express.Router();
 const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
 const LOCAL_STORAGE_PREFIX = "local:";
 const S3_STORAGE_PREFIX = "s3:";
-const LOCAL_UPLOADS_DIR = path.join(__dirname, "..", "uploads");
 const PROFILE_IMAGE_DIR = "profile-images";
 
 function getProfileImageStorageMode() {
@@ -53,63 +50,8 @@ function isS3StoragePath(objectPath) {
   return String(objectPath || "").startsWith(S3_STORAGE_PREFIX);
 }
 
-function getLocalRelativePath(objectPath) {
-  return toPosixPath(String(objectPath || "").slice(LOCAL_STORAGE_PREFIX.length));
-}
-
 function getS3Key(objectPath) {
   return toPosixPath(String(objectPath || "").slice(S3_STORAGE_PREFIX.length));
-}
-
-function getPublicBaseUrl(req) {
-  const configuredBaseUrl = String(process.env.BACKEND_PUBLIC_URL || "").trim();
-  if (configuredBaseUrl) {
-    return configuredBaseUrl.replace(/\/+$/, "");
-  }
-
-  return `${req.protocol}://${req.get("host")}`;
-}
-
-function buildLocalProfileImageUrl(req, objectPath) {
-  const relativePath = getLocalRelativePath(objectPath);
-  if (!relativePath) {
-    return "";
-  }
-
-  return `${getPublicBaseUrl(req)}/uploads/${relativePath}`;
-}
-
-async function storeProfileImageLocally(req, userId, imageBuffer, extension) {
-  const relativePath = path.posix.join(
-    PROFILE_IMAGE_DIR,
-    String(userId),
-    `${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${extension}`
-  );
-  const absolutePath = path.join(LOCAL_UPLOADS_DIR, ...relativePath.split("/"));
-
-  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-  await fs.writeFile(absolutePath, imageBuffer);
-
-  return {
-    objectPath: `${LOCAL_STORAGE_PREFIX}${relativePath}`,
-    publicUrl: `${getPublicBaseUrl(req)}/uploads/${relativePath}`
-  };
-}
-
-async function deleteLocalProfileImage(objectPath) {
-  const relativePath = getLocalRelativePath(objectPath);
-  if (!relativePath) {
-    return;
-  }
-
-  const absolutePath = path.join(LOCAL_UPLOADS_DIR, ...relativePath.split("/"));
-  try {
-    await fs.unlink(absolutePath);
-  } catch (err) {
-    if (err?.code !== "ENOENT") {
-      throw err;
-    }
-  }
 }
 
 function mapFirebaseStorageError(err) {
@@ -161,10 +103,13 @@ function mapS3StorageError(err) {
 async function resolveProfileImageStorage() {
   const mode = getProfileImageStorageMode();
   if (mode === "local") {
-    return { provider: "local", bucket: null };
+    throw new HttpError(
+      503,
+      "Local profile image uploads are disabled. Set PROFILE_IMAGE_STORAGE=s3 (recommended) or PROFILE_IMAGE_STORAGE=firebase."
+    );
   }
 
-  if (mode === "s3") {
+  if (mode === "s3" || (mode === "auto" && isS3Configured())) {
     if (!isS3Configured()) {
       throw new HttpError(503, "S3 storage is not configured. Set AWS_S3_BUCKET and AWS_REGION.");
     }
@@ -176,19 +121,6 @@ async function resolveProfileImageStorage() {
     }
 
     return { provider: "s3", bucket: null };
-  }
-
-  if (mode === "auto" && isS3Configured()) {
-    try {
-      const url = await getSignedS3ReadUrl({ key: `${PROFILE_IMAGE_DIR}/healthcheck`, expiresInSeconds: 60 });
-      if (url) {
-        return { provider: "s3", bucket: null };
-      }
-    } catch (err) {
-      console.warn(
-        `S3 profile image storage unavailable (${err?.message || "unknown error"}); falling back to Firebase/local.`
-      );
-    }
   }
 
   try {
@@ -212,7 +144,10 @@ async function resolveProfileImageStorage() {
     }
   }
 
-  return { provider: "local", bucket: null };
+  throw new HttpError(
+    503,
+    "Profile image storage is not configured. Set AWS_S3_BUCKET and AWS_REGION (recommended) or configure Firebase Storage."
+  );
 }
 
 function signToken(user) {
@@ -230,10 +165,7 @@ function signToken(user) {
 async function getProfileImageUrl(user, req) {
   if (user.profileImagePath) {
     if (isLocalStoragePath(user.profileImagePath)) {
-      if (req) {
-        return buildLocalProfileImageUrl(req, user.profileImagePath);
-      }
-      return user.profileImage || "";
+      return "";
     }
 
     if (isS3StoragePath(user.profileImagePath)) {
@@ -476,9 +408,7 @@ router.put(
 
       objectPath = `${S3_STORAGE_PREFIX}${objectKey}`;
     } else {
-      const stored = await storeProfileImageLocally(req, req.user.id, imageBuffer, extension);
-      objectPath = stored.objectPath;
-      profileImage = stored.publicUrl;
+      throw new HttpError(500, `Unsupported profile image storage provider: ${provider}`);
     }
 
     const previousPath = user.profileImagePath;
@@ -487,9 +417,7 @@ router.put(
     await user.save();
 
     if (previousPath && previousPath !== objectPath) {
-      if (isLocalStoragePath(previousPath)) {
-        deleteLocalProfileImage(previousPath).catch(() => {});
-      } else if (isS3StoragePath(previousPath)) {
+      if (isS3StoragePath(previousPath)) {
         deleteS3Object({ key: getS3Key(previousPath) }).catch(() => {});
       } else if (bucket) {
         bucket
