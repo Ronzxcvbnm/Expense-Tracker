@@ -13,10 +13,17 @@ const requireRole = require("../middleware/requireRole");
 const asyncHandler = require("../middleware/asyncHandler");
 const HttpError = require("../utils/httpError");
 const { getStorageBucket } = require("../config/firebase");
+const {
+  deleteObject: deleteS3Object,
+  getSignedReadUrl: getSignedS3ReadUrl,
+  isS3Configured,
+  putObject: putS3Object
+} = require("../config/s3");
 
 const router = express.Router();
 const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
 const LOCAL_STORAGE_PREFIX = "local:";
+const S3_STORAGE_PREFIX = "s3:";
 const LOCAL_UPLOADS_DIR = path.join(__dirname, "..", "uploads");
 const PROFILE_IMAGE_DIR = "profile-images";
 
@@ -25,7 +32,7 @@ function getProfileImageStorageMode() {
     .trim()
     .toLowerCase();
 
-  if (["local", "firebase", "auto"].includes(mode)) {
+  if (["local", "firebase", "s3", "auto"].includes(mode)) {
     return mode;
   }
 
@@ -42,8 +49,16 @@ function isLocalStoragePath(objectPath) {
   return String(objectPath || "").startsWith(LOCAL_STORAGE_PREFIX);
 }
 
+function isS3StoragePath(objectPath) {
+  return String(objectPath || "").startsWith(S3_STORAGE_PREFIX);
+}
+
 function getLocalRelativePath(objectPath) {
   return toPosixPath(String(objectPath || "").slice(LOCAL_STORAGE_PREFIX.length));
+}
+
+function getS3Key(objectPath) {
+  return toPosixPath(String(objectPath || "").slice(S3_STORAGE_PREFIX.length));
 }
 
 function getPublicBaseUrl(req) {
@@ -118,10 +133,62 @@ function mapFirebaseStorageError(err) {
   return new HttpError(503, `Firebase storage initialization failed: ${errMessage || "unknown error"}`);
 }
 
+function mapS3StorageError(err) {
+  const errMessage = String(err?.message || "");
+  const statusCode = Number(err?.$metadata?.httpStatusCode || 0);
+
+  if (err?.code === "AWS_SDK_NOT_INSTALLED") {
+    return new HttpError(
+      503,
+      "AWS SDK is not installed. Run `npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner` in backend/."
+    );
+  }
+
+  if (statusCode === 404 || err?.name === "NoSuchBucket") {
+    return new HttpError(503, "S3 bucket was not found. Check AWS_S3_BUCKET and AWS_REGION.");
+  }
+
+  if (statusCode === 401 || statusCode === 403 || err?.name === "AccessDenied") {
+    return new HttpError(
+      503,
+      "S3 access was denied. Verify AWS credentials and bucket permissions."
+    );
+  }
+
+  return new HttpError(503, `S3 initialization failed: ${errMessage || "unknown error"}`);
+}
+
 async function resolveProfileImageStorage() {
   const mode = getProfileImageStorageMode();
   if (mode === "local") {
     return { provider: "local", bucket: null };
+  }
+
+  if (mode === "s3") {
+    if (!isS3Configured()) {
+      throw new HttpError(503, "S3 storage is not configured. Set AWS_S3_BUCKET and AWS_REGION.");
+    }
+
+    try {
+      await getSignedS3ReadUrl({ key: `${PROFILE_IMAGE_DIR}/healthcheck`, expiresInSeconds: 60 });
+    } catch (err) {
+      throw mapS3StorageError(err);
+    }
+
+    return { provider: "s3", bucket: null };
+  }
+
+  if (mode === "auto" && isS3Configured()) {
+    try {
+      const url = await getSignedS3ReadUrl({ key: `${PROFILE_IMAGE_DIR}/healthcheck`, expiresInSeconds: 60 });
+      if (url) {
+        return { provider: "s3", bucket: null };
+      }
+    } catch (err) {
+      console.warn(
+        `S3 profile image storage unavailable (${err?.message || "unknown error"}); falling back to Firebase/local.`
+      );
+    }
   }
 
   try {
@@ -167,6 +234,15 @@ async function getProfileImageUrl(user, req) {
         return buildLocalProfileImageUrl(req, user.profileImagePath);
       }
       return user.profileImage || "";
+    }
+
+    if (isS3StoragePath(user.profileImagePath)) {
+      try {
+        const url = await getSignedS3ReadUrl({ key: getS3Key(user.profileImagePath) });
+        return url || user.profileImage || "";
+      } catch (err) {
+        return "";
+      }
     }
 
     try {
@@ -386,6 +462,19 @@ router.put(
           cacheControl: "private, max-age=0, no-transform"
         }
       });
+    } else if (provider === "s3") {
+      const objectKey = `profile-images/${req.user.id}/${Date.now()}-${crypto
+        .randomBytes(8)
+        .toString("hex")}.${extension}`;
+
+      await putS3Object({
+        key: objectKey,
+        body: imageBuffer,
+        contentType: mimeType,
+        cacheControl: "private, max-age=0, no-transform"
+      });
+
+      objectPath = `${S3_STORAGE_PREFIX}${objectKey}`;
     } else {
       const stored = await storeProfileImageLocally(req, req.user.id, imageBuffer, extension);
       objectPath = stored.objectPath;
@@ -400,6 +489,8 @@ router.put(
     if (previousPath && previousPath !== objectPath) {
       if (isLocalStoragePath(previousPath)) {
         deleteLocalProfileImage(previousPath).catch(() => {});
+      } else if (isS3StoragePath(previousPath)) {
+        deleteS3Object({ key: getS3Key(previousPath) }).catch(() => {});
       } else if (bucket) {
         bucket
           .file(previousPath)
@@ -459,10 +550,29 @@ router.patch(
   })
 );
 
-router.get("/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+function ensureGoogleOAuthConfigured(req, res, next) {
+  const clientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.GOOGLE_CLIENT_SECRET || "").trim();
+
+  if (!clientId || !clientSecret) {
+    return res.status(503).json({
+      message:
+        "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in backend/.env to enable this endpoint."
+    });
+  }
+
+  return next();
+}
+
+router.get(
+  "/google",
+  ensureGoogleOAuthConfigured,
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
 
 router.get(
   "/google/callback",
+  ensureGoogleOAuthConfigured,
   passport.authenticate("google", { session: false, failureRedirect: "/index.html?error=oauth_failed" }),
   asyncHandler(async (req, res) => {
     const token = signToken(req.user);

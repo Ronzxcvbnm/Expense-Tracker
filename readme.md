@@ -17,7 +17,7 @@ A complete expense tracking web application built with HTML, CSS, JavaScript, No
 - Category management
 - Dashboard charts and export
 - Google OAuth + JWT authentication
-- Firebase Storage profile image upload (private objects + signed URL retrieval)
+- Profile image upload (local / Firebase Storage / AWS S3)
 - RBAC-protected admin endpoints
 
 ## Backend Setup
@@ -26,11 +26,25 @@ A complete expense tracking web application built with HTML, CSS, JavaScript, No
 ```bash
 cd backend
 npm install
-<<<<<<< HEAD
 ```
+
+If `npm` fails in Windows PowerShell due to script execution policy, use `npm.cmd install`.
 
 2. Create `backend/.env`:
 
+```bash
+cp .env.example .env
+```
+
+Fill in at least:
+- `MONGO_URI`
+- `JWT_SECRET`
+- `SESSION_SECRET`
+
+For profile images:
+- Local (default): `PROFILE_IMAGE_STORAGE=local`
+- AWS S3: `PROFILE_IMAGE_STORAGE=s3` + set `AWS_S3_BUCKET` and `AWS_REGION` (and credentials if needed)
+- Firebase: `PROFILE_IMAGE_STORAGE=firebase` + set Firebase env vars
 
 3. Run the server:
 

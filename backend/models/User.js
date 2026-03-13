@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema(
 
     profileImagePath: {
       type: String,
-      default: ""       // private object path in Firebase Storage
+      default: ""       // private object path in storage (Firebase/S3/local)
     },
 
     role: {
