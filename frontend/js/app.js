@@ -98,6 +98,53 @@ function bindInteractiveButtons() {
 
 bindInteractiveButtons();
 
+window.showToast = function (message, type = "info", timeoutMs = 3200) {
+  const host = document.getElementById("toastHost");
+  if (!host) return;
+
+  const msg = String(message || "").trim();
+  if (!msg) return;
+
+  const normalizedType = (type || "info").toLowerCase();
+  const iconClass = normalizedType === "success"
+    ? "fa-check-circle"
+    : normalizedType === "error"
+      ? "fa-triangle-exclamation"
+      : "fa-circle-info";
+
+  const toastEl = document.createElement("div");
+  toastEl.className = `toast ${normalizedType}`;
+
+  const iconEl = document.createElement("i");
+  iconEl.className = `toast-icon fas ${iconClass}`;
+
+  const messageEl = document.createElement("div");
+  messageEl.className = "toast-message";
+  messageEl.textContent = msg;
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "toast-close";
+  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.textContent = "×";
+
+  toastEl.appendChild(iconEl);
+  toastEl.appendChild(messageEl);
+  toastEl.appendChild(closeBtn);
+
+  host.prepend(toastEl);
+
+  while (host.children.length > 3) {
+    host.lastElementChild?.remove();
+  }
+
+  const timer = setTimeout(() => toastEl.remove(), Math.max(1200, Number(timeoutMs) || 3200));
+  closeBtn.addEventListener("click", () => {
+    clearTimeout(timer);
+    toastEl.remove();
+  });
+};
+
 window.authHeaders = function (extra = {}) {
   return { ...extra, Authorization: `Bearer ${localStorage.getItem("token")}` };
 };
@@ -110,13 +157,27 @@ function logoutUser() {
 }
 
 // Logout
-document.querySelector(".menu-item.logout")?.addEventListener("click", () => {
-  if (!confirm("Logout?")) return;
+document.querySelector(".menu-item.logout")?.addEventListener("click", async () => {
+  const ok = await window.confirmDialog({
+    title: "Logout",
+    message: "Are you sure you want to logout?",
+    confirmText: "Logout",
+    cancelText: "Cancel",
+    danger: false
+  });
+  if (!ok) return;
   logoutUser();
 });
 
-document.getElementById("profileLogoutBtn")?.addEventListener("click", () => {
-  if (!confirm("Logout?")) return;
+document.getElementById("profileLogoutBtn")?.addEventListener("click", async () => {
+  const ok = await window.confirmDialog({
+    title: "Logout",
+    message: "Are you sure you want to logout?",
+    confirmText: "Logout",
+    cancelText: "Cancel",
+    danger: false
+  });
+  if (!ok) return;
   window.closeModal("profile");
   logoutUser();
 });
@@ -147,26 +208,126 @@ function loadPageData(pageName) {
 }
 
 // Modals
+let confirmResolver = null;
+let confirmCleanup = null;
+
+function resolveConfirm(value) {
+  if (!confirmResolver) return;
+
+  const resolve = confirmResolver;
+  const cleanup = confirmCleanup;
+  confirmResolver = null;
+  confirmCleanup = null;
+
+  if (typeof cleanup === "function") cleanup();
+  resolve(value);
+}
+
 const modals = {
   addExpense: document.getElementById("addExpenseModal"),
   inputIncome: document.getElementById("inputIncomeModal"),
   editBudget: document.getElementById("editBudgetModal"),
   addSavings: document.getElementById("addSavingsModal"),
-  profile: document.getElementById("profileModal")
+  profile: document.getElementById("profileModal"),
+  confirm: document.getElementById("confirmModal")
 };
 
-window.openModal = function (name) { modals[name].classList.add("active"); };
-window.closeModal = function (name) { modals[name].classList.remove("active"); };
+Object.entries(modals).forEach(([name, modal]) => {
+  if (modal) modal.dataset.modalName = name;
+});
+
+window.openModal = function (name) {
+  const modal = modals[name];
+  if (!modal) return;
+  modal.classList.add("active");
+};
+
+window.closeModal = function (name) {
+  const modal = modals[name];
+  if (!modal) return;
+
+  if (name === "confirm") resolveConfirm(false);
+  modal.classList.remove("active");
+};
+
+window.confirmDialog = function (options = {}) {
+  const modal = modals.confirm;
+  if (!modal) return Promise.resolve(window.confirm(options.message || "Are you sure?"));
+
+  const titleEl = document.getElementById("confirmTitle");
+  const messageEl = document.getElementById("confirmMessage");
+  const okBtn = document.getElementById("confirmOkBtn");
+  const cancelBtn = document.getElementById("confirmCancelBtn");
+
+  if (!titleEl || !messageEl || !okBtn || !cancelBtn) {
+    return Promise.resolve(window.confirm(options.message || "Are you sure?"));
+  }
+
+  const title = options.title || "Confirm";
+  const message = options.message || "Are you sure?";
+  const confirmText = options.confirmText || "Confirm";
+  const cancelText = options.cancelText || "Cancel";
+  const danger = options.danger !== false;
+
+  titleEl.textContent = title;
+  messageEl.textContent = message;
+  okBtn.textContent = confirmText;
+  cancelBtn.textContent = cancelText;
+
+  okBtn.classList.toggle("btn-danger", Boolean(danger));
+  okBtn.classList.toggle("btn-primary", !danger);
+
+  window.closeModal("confirm");
+
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+
+    const onCancel = () => {
+      resolveConfirm(false);
+      window.closeModal("confirm");
+    };
+
+    const onOk = () => {
+      resolveConfirm(true);
+      window.closeModal("confirm");
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onCancel();
+    };
+
+    confirmCleanup = () => {
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKeyDown);
+
+    window.openModal("confirm");
+    cancelBtn.focus();
+  });
+};
 
 document.querySelectorAll(".close, .close-modal").forEach((btn) => {
   btn.addEventListener("click", function () {
-    this.closest(".modal").classList.remove("active");
+    const modalEl = this.closest(".modal");
+    if (!modalEl) return;
+
+    const name = modalEl.dataset.modalName;
+    if (name) return window.closeModal(name);
+
+    modalEl.classList.remove("active");
   });
 });
 
-Object.values(modals).forEach((modal) => {
+Object.entries(modals).forEach(([name, modal]) => {
+  if (!modal) return;
+
   modal.addEventListener("click", function (e) {
-    if (e.target === this) this.classList.remove("active");
+    if (e.target === this) window.closeModal(name);
   });
 });
 
@@ -478,7 +639,14 @@ document.getElementById("addCategoryForm").addEventListener("submit", async (e) 
 
 // Delete helpers (global)
 window.deleteCategory = async function (id) {
-  if (!confirm("Delete category?")) return;
+  const ok = await window.confirmDialog({
+    title: "Delete Category",
+    message: "Delete this category? This action cannot be undone.",
+    confirmText: "Delete",
+    cancelText: "Cancel",
+    danger: true
+  });
+  if (!ok) return;
 
   const res = await fetch(`${API_URL}/categories/${id}`, {
     method: "DELETE",
@@ -491,7 +659,10 @@ window.deleteCategory = async function (id) {
   } catch {
     out = {};
   }
-  if (!res.ok) return alert(out.message || "Failed to delete category");
+  if (!res.ok) {
+    window.showToast(out.message || "Failed to delete category", "error");
+    return;
+  }
 
   window.loadCategoriesPage();
   if (typeof window.loadManageBudgetPage === "function") await window.loadManageBudgetPage();
@@ -499,7 +670,14 @@ window.deleteCategory = async function (id) {
 };
 
 window.deleteTransaction = async function (id) {
-  if (!confirm("Delete transaction?")) return;
+  const ok = await window.confirmDialog({
+    title: "Delete Transaction",
+    message: "Delete this transaction? This action cannot be undone.",
+    confirmText: "Delete",
+    cancelText: "Cancel",
+    danger: true
+  });
+  if (!ok) return;
 
   const res = await fetch(`${API_URL}/transactions/${id}`, {
     method: "DELETE",
@@ -507,14 +685,24 @@ window.deleteTransaction = async function (id) {
   });
 
   const out = await res.json();
-  if (!res.ok) return alert(out.message || "Failed to delete transaction");
+  if (!res.ok) {
+    window.showToast(out.message || "Failed to delete transaction", "error");
+    return;
+  }
 
   window.loadAllTransactions();
   window.loadDashboard();
 };
 
 window.deleteBudget = async function (id) {
-  if (!confirm("Delete budget?")) return;
+  const ok = await window.confirmDialog({
+    title: "Delete Budget",
+    message: "Delete this budget? This action cannot be undone.",
+    confirmText: "Delete",
+    cancelText: "Cancel",
+    danger: true
+  });
+  if (!ok) return;
 
   const res = await fetch(`${API_URL}/budgets/${id}`, {
     method: "DELETE",
@@ -527,7 +715,10 @@ window.deleteBudget = async function (id) {
   } catch {
     out = {};
   }
-  if (!res.ok) return alert(out.message || "Failed to delete budget");
+  if (!res.ok) {
+    window.showToast(out.message || "Failed to delete budget", "error");
+    return;
+  }
 
   if (typeof window.loadManageBudgetPage === "function") await window.loadManageBudgetPage();
   if (typeof window.loadDashboard === "function") await window.loadDashboard();

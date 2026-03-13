@@ -41,6 +41,24 @@ Fill in at least:
 - `JWT_SECRET`
 - `SESSION_SECRET`
 
+### Suggestions to Email (Optional)
+The About page includes a Suggestions form that can email you feedback. To enable it:
+
+1. Install the email dependency:
+
+```bash
+cd backend
+npm install nodemailer
+```
+
+2. Add SMTP settings to `backend/.env` (see `backend/.env.example`). For Gmail, use an **App Password** (not your normal password) and set:
+- `SMTP_HOST=smtp.gmail.com`
+- `SMTP_PORT=465`
+- `SMTP_SECURE=true`
+- `SMTP_USER=yourgmail@gmail.com`
+- `SMTP_PASS=your_gmail_app_password`
+- `SUGGESTIONS_TO_EMAIL=yourgmail@gmail.com`
+
 For profile images:
 - AWS S3 (recommended): `PROFILE_IMAGE_STORAGE=s3` + set `AWS_S3_BUCKET` and `AWS_REGION` (and credentials if needed)
 - Firebase (optional): `PROFILE_IMAGE_STORAGE=firebase` + set Firebase env vars

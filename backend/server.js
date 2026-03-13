@@ -88,6 +88,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/transactions", require("./routes/transactions"));
 app.use("/api/budgets", require("./routes/budgets"));
 app.use("/api/categories", require("./routes/categories"));
+app.use("/api/suggestions", require("./routes/suggestions"));
 
 app.use(notFound);
 app.use(errorHandler);

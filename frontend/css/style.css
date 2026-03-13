@@ -734,6 +734,101 @@ tbody tr:hover {
     flex: 1;
 }
 
+/* Confirm Modal */
+.confirm-modal-content {
+    max-width: 420px;
+}
+
+.confirm-body {
+    padding: 24px;
+}
+
+.confirm-message {
+    margin: 0;
+    color: var(--gray-700);
+    line-height: 1.6;
+}
+
+/* Toasts */
+.toast-host {
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 2000;
+    display: grid;
+    gap: 10px;
+    width: min(92vw, 380px);
+}
+
+.toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(191, 209, 228, 0.8);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+    animation: toastIn 0.18s ease both;
+}
+
+.toast-icon {
+    font-size: 18px;
+    line-height: 1;
+    margin-top: 2px;
+    color: #0369a1;
+}
+
+.toast-message {
+    flex: 1;
+    color: var(--gray-800);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.toast-close {
+    border: 0;
+    background: transparent;
+    color: var(--gray-600);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 2px 4px;
+}
+
+.toast-close:hover {
+    color: var(--gray-800);
+}
+
+.toast.success {
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.toast.success .toast-icon {
+    color: #059669;
+}
+
+.toast.error {
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+.toast.error .toast-icon {
+    color: #b91c1c;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
 /* Action Buttons */
 .action-btn {
     background: none;
@@ -1460,6 +1555,13 @@ tbody tr:hover {
 
     .menu-item:hover {
         transform: none;
+    }
+
+    .toast-host {
+        left: 12px;
+        right: 12px;
+        width: auto;
+        bottom: calc(16px + 72px + env(safe-area-inset-bottom));
     }
 
     .content {
