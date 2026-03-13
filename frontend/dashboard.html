@@ -46,6 +46,10 @@
                     <i class="fas fa-receipt"></i>
                     <span>Transactions</span>
                 </li>
+                <li class="menu-item" data-page="about">
+                    <i class="fas fa-info-circle"></i>
+                    <span>About</span>
+                </li>
             </ul>
             <div class="menu-bottom">
                 <div class="menu-item" id="exportData">
@@ -178,6 +182,99 @@
                                 <!-- All transactions will be loaded here -->
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- About Page -->
+            <div id="about-page" class="page">
+                <div class="page-header">
+                    <h2>About</h2>
+                </div>
+
+                <div class="about-grid">
+                    <div class="card about-card">
+                        <h3>Created By</h3>
+
+                        <div class="about-creator">
+                            <div class="about-avatar-wrap">
+                                <img class="about-avatar" src="assets/creator-placeholder.jpeg" alt="Creator photo (placeholder)">
+                            </div>
+                            <div>
+                                <div class="about-name">Ronelio Sevilla</div>
+                                <div class="about-role">Creator / Developer</div>
+                            </div>
+                        </div>
+
+                        <div class="about-details">
+                            <div class="about-detail">
+                                <span class="about-label">Email</span>
+                                <span class="about-value">roneliosevilla26@gmail.com</span>
+                            </div>
+                            <div class="about-detail">
+                                <span class="about-label">School / Organization</span>
+                                <span class="about-value">Mapua Malayan Digital College</span>
+                            </div>
+                            <div class="about-detail">
+                                <span class="about-label">Course / Role</span>
+                                <span class="about-value">Information Technology / Software Development</span>
+                            </div>
+                            <div class="about-detail">
+                                <span class="about-label">Project</span>
+                                <span class="about-value">Personal Expense Tracker</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card about-card">
+                        <h3>Notes</h3>
+                        <p class="about-note">
+                            Hi! I'm Ronelio Sevilla, not a professional programmer, but someone who knows how to use the internet, available resources, and AI tools to build things and make ideas work.
+
+I believe programming today is not about memorizing everything, but about knowing how to find solutions, understand problems, and use the tools available online. I may not be the best at coding from memory, but I can research, learn fast, and turn ideas into working projects.
+
+Most of what I create comes from studying tutorials, reading documentation, searching online, and using AI to guide me. I see this not as a weakness, but as part of how modern developers actually work.
+
+I'm still learning, still improving, and still building.
+                        </p>
+
+                        <hr class="about-divider">
+
+                        <h3>Suggestions</h3>
+                        <form id="suggestionForm" class="about-form">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="suggestionName">Name (Optional)</label>
+                                    <input type="text" id="suggestionName" placeholder="Your name">
+                                </div>
+                                <div class="form-group">
+                                    <label for="suggestionEmail">Email (Optional)</label>
+                                    <input type="email" id="suggestionEmail" placeholder="you@example.com">
+                                </div>
+                                <div class="form-group">
+                                    <label for="suggestionType">Type</label>
+                                    <select id="suggestionType">
+                                        <option value="suggestion">Suggestion</option>
+                                        <option value="bug">Bug Report</option>
+                                        <option value="feature">Feature Request</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="suggestionMessage">Message</label>
+                                <textarea id="suggestionMessage" rows="4" placeholder="Write your suggestion..." required></textarea>
+                            </div>
+
+                            <div class="about-form-actions">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i>
+                                    Submit
+                                </button>
+                            </div>
+
+                            <p id="suggestionMsg" class="about-form-msg" aria-live="polite"></p>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -417,6 +514,7 @@
     </div>
 
     <script src="js/app.js"></script>
+    <script src="js/about.js"></script>
     <script src="js/dashboard.js"></script>
     <script src="js/charts.js"></script>
 </body>
