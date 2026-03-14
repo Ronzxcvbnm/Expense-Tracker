@@ -5,6 +5,15 @@ window.loadDashboard = async function () {
   await window.loadCharts();
 };
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function loadSummary() {
   const res = await fetch(`${API_URL}/transactions/summary`, { headers: authHeaders() });
   const data = await res.json();
@@ -32,7 +41,7 @@ async function loadRecentTransactions() {
 
     row.innerHTML = `
       <td>${date}</td>
-      <td>${t.category}</td>
+      <td>${escapeHtml(t.category)}</td>
       <td class="${t.type === "income" ? "amount-positive" : "amount-negative"}">${amount}</td>
       <td><span class="badge ${t.type}">${t.type}</span></td>
     `;
@@ -56,12 +65,12 @@ window.loadAllTransactions = async function () {
 
     row.innerHTML = `
       <td>${date}</td>
-      <td>${t.category}</td>
-      <td>${t.description || "-"}</td>
+      <td>${escapeHtml(t.category)}</td>
+      <td>${escapeHtml(t.description || "-")}</td>
       <td class="${t.type === "income" ? "amount-positive" : "amount-negative"}">${amount}</td>
       <td><span class="badge ${t.type}">${t.type}</span></td>
       <td>
-        <button class="action-btn" onclick="deleteTransaction('${t._id}')">
+        <button class="action-btn js-delete-transaction" type="button" data-tx-id="${t._id}">
           <i class="fas fa-trash"></i>
         </button>
       </td>
@@ -123,13 +132,13 @@ window.loadCategoriesPage = async function () {
 
     div.innerHTML = `
       <div class="category-info">
-        <span class="category-icon">${cat.icon}</span>
+        <span class="category-icon">${escapeHtml(cat.icon)}</span>
         <div>
-          <div class="category-name">${cat.name}</div>
-          <div class="category-color">${cat.color}</div>
+          <div class="category-name">${escapeHtml(cat.name)}</div>
+          <div class="category-color">${escapeHtml(cat.color)}</div>
         </div>
       </div>
-      <button class="delete-category-btn" onclick="deleteCategory('${cat._id}')">
+      <button class="delete-category-btn js-delete-category" type="button" data-category-id="${cat._id}">
         <i class="fas fa-trash"></i>
       </button>
     `;
@@ -161,12 +170,12 @@ function renderBudgets(budgets, containerId) {
 
     card.innerHTML = `
       <div class="budget-card-header">
-        <h4>${b.category}</h4>
+        <h4>${escapeHtml(b.category)}</h4>
         <div class="budget-card-actions">
-          <button class="edit-budget-btn" onclick="editBudget('${b._id}', '${b.category}', ${allocated})" title="Edit budget">
+          <button class="edit-budget-btn js-edit-budget" type="button" data-budget-id="${b._id}" data-budget-category="${encodeURIComponent(b.category)}" data-budget-allocated="${allocated}" title="Edit budget">
             <i class="fas fa-pencil"></i>
           </button>
-          <button class="delete-budget-btn" onclick="deleteBudget('${b._id}')" title="Delete budget">
+          <button class="delete-budget-btn js-delete-budget" type="button" data-budget-id="${b._id}" title="Delete budget">
             <i class="fas fa-trash"></i>
           </button>
         </div>
@@ -225,3 +234,58 @@ window.editBudget = function (id, category, allocated) {
   document.getElementById("editBudgetAmount").value = allocated;
   openModal("editBudget");
 };
+
+function bindDashboardActions() {
+  const txTable = document.getElementById("allTransactionsTable");
+  if (txTable && !txTable.dataset.actionsBound) {
+    txTable.dataset.actionsBound = "1";
+    txTable.addEventListener("click", (event) => {
+      const deleteBtn = event.target.closest("button.js-delete-transaction");
+      if (!deleteBtn) return;
+      const id = deleteBtn.dataset.txId;
+      if (!id) return;
+      window.deleteTransaction?.(id);
+    });
+  }
+
+  const categoriesGrid = document.getElementById("categoriesGrid");
+  if (categoriesGrid && !categoriesGrid.dataset.actionsBound) {
+    categoriesGrid.dataset.actionsBound = "1";
+    categoriesGrid.addEventListener("click", (event) => {
+      const deleteBtn = event.target.closest("button.js-delete-category");
+      if (!deleteBtn) return;
+      const id = deleteBtn.dataset.categoryId;
+      if (!id) return;
+      window.deleteCategory?.(id);
+    });
+  }
+
+  const budgetContainerIds = ["budgetCards", "manageBudgetCards"];
+  for (const containerId of budgetContainerIds) {
+    const container = document.getElementById(containerId);
+    if (!container || container.dataset.actionsBound) continue;
+
+    container.dataset.actionsBound = "1";
+    container.addEventListener("click", (event) => {
+      const editBtn = event.target.closest("button.js-edit-budget");
+      if (editBtn) {
+        const id = editBtn.dataset.budgetId;
+        const category = editBtn.dataset.budgetCategory ? decodeURIComponent(editBtn.dataset.budgetCategory) : "";
+        const allocated = Number(editBtn.dataset.budgetAllocated || 0);
+        if (id) {
+          window.editBudget?.(id, category, allocated);
+        }
+        return;
+      }
+
+      const deleteBtn = event.target.closest("button.js-delete-budget");
+      if (deleteBtn) {
+        const id = deleteBtn.dataset.budgetId;
+        if (!id) return;
+        window.deleteBudget?.(id);
+      }
+    });
+  }
+}
+
+bindDashboardActions();

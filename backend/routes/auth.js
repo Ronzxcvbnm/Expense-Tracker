@@ -549,24 +549,32 @@ router.put(
         .randomBytes(8)
         .toString("hex")}.${extension}`;
 
-      await bucket.file(objectPath).save(imageBuffer, {
-        resumable: false,
-        metadata: {
-          contentType: mimeType,
-          cacheControl: "private, max-age=0, no-transform"
-        }
-      });
+      try {
+        await bucket.file(objectPath).save(imageBuffer, {
+          resumable: false,
+          metadata: {
+            contentType: mimeType,
+            cacheControl: "private, max-age=0, no-transform"
+          }
+        });
+      } catch (err) {
+        throw mapFirebaseStorageError(err);
+      }
     } else if (provider === "s3") {
       const objectKey = `profile-images/${req.user.id}/${Date.now()}-${crypto
         .randomBytes(8)
         .toString("hex")}.${extension}`;
 
-      await putS3Object({
-        key: objectKey,
-        body: imageBuffer,
-        contentType: mimeType,
-        cacheControl: "private, max-age=0, no-transform"
-      });
+      try {
+        await putS3Object({
+          key: objectKey,
+          body: imageBuffer,
+          contentType: mimeType,
+          cacheControl: "private, max-age=0, no-transform"
+        });
+      } catch (err) {
+        throw mapS3StorageError(err);
+      }
 
       objectPath = `${S3_STORAGE_PREFIX}${objectKey}`;
     } else {

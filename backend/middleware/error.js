@@ -28,14 +28,15 @@ function errorHandler(err, req, res, next) {
     message = "Invalid identifier";
   }
 
-  const safeMessage = statusCode >= 500 ? "Server error" : err.message || "Request failed";
+  const isHttpError = err?.name === "HttpError" && Number.isFinite(Number(err.statusCode || err.status));
+  const exposeMessage = statusCode < 500 || isHttpError;
 
-  const payload = { message: statusCode >= 500 ? "Server error" : message || safeMessage };
-  if (statusCode < 500 && details) {
+  const payload = { message: exposeMessage ? message || "Request failed" : "Server error" };
+  if (exposeMessage && details) {
     payload.details = details;
   }
 
-  if (process.env.NODE_ENV !== "production" && statusCode >= 500 && message) {
+  if (process.env.NODE_ENV !== "production" && !exposeMessage && message) {
     payload.error = message;
   }
 
