@@ -61,10 +61,12 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 app.use(
   helmet({
+    crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
         "script-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        "img-src": ["'self'", "data:", "https:"],
         "upgrade-insecure-requests": null
       }
     }
