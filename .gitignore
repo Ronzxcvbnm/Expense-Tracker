@@ -9,3 +9,8 @@ backend/uploads/
 .env
 backend/.env
 frontend/.env
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

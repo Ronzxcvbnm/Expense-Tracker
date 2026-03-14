@@ -51,7 +51,10 @@
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
       }
 
-      const endpoint = `${window.API_URL || "http://localhost:5000/api"}/suggestions`;
+      const configuredApiUrl = String(window.API_URL || "").trim();
+      const isLiveServer = window.location.port === "5500" || window.location.port === "5501";
+      const fallbackApiUrl = `${(isLiveServer ? "http://localhost:5000" : window.location.origin).replace(/\/+$/, "")}/api`;
+      const endpoint = `${(configuredApiUrl || fallbackApiUrl).replace(/\/+$/, "")}/suggestions`;
       const res = await fetch(endpoint, {
         method: "POST",
         headers: window.authHeaders({ "Content-Type": "application/json" }),

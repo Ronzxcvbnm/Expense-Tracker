@@ -352,7 +352,13 @@
   </div>
 
   <script>
-    const API = "http://localhost:5000"; // adjust if needed
+    const API = (function resolveApiBase() {
+      const configuredApiBase = String(window.API_BASE || "").trim();
+      if (configuredApiBase) return configuredApiBase.replace(/\/+$/, "");
+
+      const isLiveServer = window.location.port === "5500" || window.location.port === "5501";
+      return (isLiveServer ? "http://localhost:5000" : window.location.origin).replace(/\/+$/, "");
+    })(); // adjust if needed
     document.getElementById("googleLoginLink").href = `${API}/api/auth/google`;
 
     const authTabs = document.getElementById("authTabs");

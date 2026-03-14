@@ -1,4 +1,10 @@
 {
+  "name": "expense-tracker",
+  "private": true,
+  "scripts": {
+    "start": "node backend/server.js",
+    "postinstall": "npm --prefix backend ci --omit=dev"
+  },
   "dependencies": {
     "express-validator": "^7.3.1",
     "firebase-admin": "^13.7.0",

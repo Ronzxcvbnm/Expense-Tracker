@@ -10,6 +10,9 @@ const passport = require("./config/passport");
 const { notFound, errorHandler } = require("./middleware/error");
 
 const app = express();
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 
 const requiredEnv = ["MONGO_URI", "JWT_SECRET", "SESSION_SECRET"];
 const missingEnv = requiredEnv.filter((key) => !process.env[key]);

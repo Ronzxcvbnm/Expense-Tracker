@@ -1,5 +1,9 @@
 // GLOBALS
-window.API_URL = "http://localhost:5000/api";
+if (!window.API_URL) {
+  const isLiveServer = window.location.port === "5500" || window.location.port === "5501";
+  const apiBase = isLiveServer ? "http://localhost:5000" : window.location.origin;
+  window.API_URL = `${String(apiBase).replace(/\/+$/, "")}/api`;
+}
 const phpFormatter = new Intl.NumberFormat("en-PH", {
   style: "currency",
   currency: "PHP",
