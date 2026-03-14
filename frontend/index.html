@@ -109,6 +109,32 @@
       font-size: 13px;
       font-weight: 600;
     }
+    #authMsg.auth-msg--success {
+      color: #047857;
+    }
+    .auth-links {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: -6px;
+      margin-bottom: 6px;
+    }
+    .auth-links--center {
+      justify-content: center;
+      margin-top: 10px;
+      margin-bottom: 0;
+    }
+    .auth-link {
+      background: transparent;
+      border: 0;
+      padding: 0;
+      font-size: 13px;
+      font-weight: 800;
+      color: #0284c7;
+      cursor: pointer;
+    }
+    .auth-link:hover {
+      text-decoration: underline;
+    }
     .auth-actions {
       display: flex;
       flex-direction: column;
@@ -236,9 +262,9 @@
       <h1 class="auth-title">Expense Tracker</h1>
       <p class="auth-subtitle">MO-IT149 - Web Technology Application.</p>
 
-      <div class="auth-tabs">
-        <button class="btn btn-primary" id="tabLogin">Login</button>
-        <button class="btn btn-secondary" id="tabRegister">Register</button>
+      <div class="auth-tabs" id="authTabs">
+        <button class="btn btn-primary" id="tabLogin" type="button">Login</button>
+        <button class="btn btn-secondary" id="tabRegister" type="button">Register</button>
       </div>
 
       <p id="authMsg"></p>
@@ -252,6 +278,9 @@
         <div class="form-group">
           <label>Password</label>
           <input id="loginPassword" type="password" required />
+        </div>
+        <div class="auth-links">
+          <button class="auth-link" id="forgotPasswordLink" type="button">Forgot password?</button>
         </div>
         <div class="auth-actions">
           <button class="btn-login" type="submit">Login</button>
@@ -285,12 +314,128 @@
         </div>
         <button class="btn-register" type="submit">Create Account</button>
       </form>
+
+      <!-- FORGOT PASSWORD -->
+      <form id="forgotForm" class="hidden">
+        <p class="auth-subtitle" style="margin-top: 0;">Enter your email and we'll send you a reset link.</p>
+        <div class="form-group">
+          <label>Email</label>
+          <input id="forgotEmail" type="email" required />
+        </div>
+        <div class="auth-actions">
+          <button class="btn-login" id="forgotSubmitBtn" type="submit">Send Reset Link</button>
+          <div class="auth-links auth-links--center">
+            <button class="auth-link" id="backToLoginFromForgot" type="button">Back to login</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- RESET PASSWORD -->
+      <form id="resetForm" class="hidden">
+        <p class="auth-subtitle" style="margin-top: 0;">Choose a new password for your account.</p>
+        <div class="form-group">
+          <label>New Password</label>
+          <input id="resetPassword" type="password" required minlength="6" />
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input id="resetConfirmPassword" type="password" required minlength="6" />
+        </div>
+        <div class="auth-actions">
+          <button class="btn-login" id="resetSubmitBtn" type="submit">Reset Password</button>
+          <div class="auth-links auth-links--center">
+            <button class="auth-link" id="backToLoginFromReset" type="button">Back to login</button>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 
   <script>
     const API = "http://localhost:5000"; // adjust if needed
     document.getElementById("googleLoginLink").href = `${API}/api/auth/google`;
+
+    const authTabs = document.getElementById("authTabs");
+    const tabLogin = document.getElementById("tabLogin");
+    const tabRegister = document.getElementById("tabRegister");
+
+    const loginForm = document.getElementById("loginForm");
+    const registerForm = document.getElementById("registerForm");
+    const forgotForm = document.getElementById("forgotForm");
+    const resetForm = document.getElementById("resetForm");
+
+    const loginSubmitBtn = loginForm.querySelector(".btn-login");
+    const registerSubmitBtn = registerForm.querySelector(".btn-register");
+    const forgotSubmitBtn = document.getElementById("forgotSubmitBtn");
+    const resetSubmitBtn = document.getElementById("resetSubmitBtn");
+
+    const authMsg = document.getElementById("authMsg");
+
+    const forgotPasswordLink = document.getElementById("forgotPasswordLink");
+    const backToLoginFromForgot = document.getElementById("backToLoginFromForgot");
+    const backToLoginFromReset = document.getElementById("backToLoginFromReset");
+
+    function setAuthMessage(message, type = "error") {
+      authMsg.textContent = message || "";
+      authMsg.classList.remove("auth-msg--success");
+      if (type === "success" && message) {
+        authMsg.classList.add("auth-msg--success");
+      }
+    }
+
+    function showLogin() {
+      setAuthMessage("");
+      authTabs.classList.remove("hidden");
+      loginForm.classList.remove("hidden");
+      registerForm.classList.add("hidden");
+      forgotForm.classList.add("hidden");
+      resetForm.classList.add("hidden");
+
+      tabLogin.classList.add("btn-primary");
+      tabLogin.classList.remove("btn-secondary");
+      tabRegister.classList.add("btn-secondary");
+      tabRegister.classList.remove("btn-primary");
+    }
+
+    function showRegister() {
+      setAuthMessage("");
+      authTabs.classList.remove("hidden");
+      registerForm.classList.remove("hidden");
+      loginForm.classList.add("hidden");
+      forgotForm.classList.add("hidden");
+      resetForm.classList.add("hidden");
+
+      tabRegister.classList.add("btn-primary");
+      tabRegister.classList.remove("btn-secondary");
+      tabLogin.classList.add("btn-secondary");
+      tabLogin.classList.remove("btn-primary");
+    }
+
+    function showForgot() {
+      setAuthMessage("");
+      authTabs.classList.add("hidden");
+      loginForm.classList.add("hidden");
+      registerForm.classList.add("hidden");
+      resetForm.classList.add("hidden");
+      forgotForm.classList.remove("hidden");
+
+      const loginEmail = document.getElementById("loginEmail").value.trim();
+      const forgotEmailInput = document.getElementById("forgotEmail");
+      if (loginEmail && !forgotEmailInput.value) {
+        forgotEmailInput.value = loginEmail;
+      }
+      forgotEmailInput.focus();
+    }
+
+    function showReset() {
+      setAuthMessage("");
+      authTabs.classList.add("hidden");
+      loginForm.classList.add("hidden");
+      registerForm.classList.add("hidden");
+      forgotForm.classList.add("hidden");
+      resetForm.classList.remove("hidden");
+      document.getElementById("resetPassword").focus();
+    }
 
     // Handle OAuth redirect from backend and persist token in localStorage.
     (function handleOAuthRedirect() {
@@ -308,64 +453,136 @@
       window.location.href = "dashboard.html";
     })();
 
- async function validateToken() {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    let resetToken = null;
 
-    try {
-      const res = await fetch(`${API}/api/transactions/summary`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+    (function handlePasswordResetLink() {
+      const queryParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      resetToken = hashParams.get("resetToken") || queryParams.get("resetToken");
+      if (!resetToken) return;
 
-      if (res.ok) {
-        window.location.href = "dashboard.html";
-      } else {
-        // token is invalid -> force logout
+      showReset();
+      window.history.replaceState({}, document.title, window.location.pathname);
+    })();
+
+    async function validateToken() {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        const res = await fetch(`${API}/api/transactions/summary`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          window.location.href = "dashboard.html";
+        } else {
+          // token is invalid -> force logout
+          localStorage.removeItem("token");
+          localStorage.removeItem("userName");
+          localStorage.removeItem("userProfileImage");
+        }
+      } catch {
+        // backend not running or network error
         localStorage.removeItem("token");
         localStorage.removeItem("userName");
         localStorage.removeItem("userProfileImage");
       }
-    } catch {
-      // backend not running or network error
-      localStorage.removeItem("token");
-      localStorage.removeItem("userName");
-      localStorage.removeItem("userProfileImage");
     }
-  }
 
-  validateToken();
+    if (!resetToken) {
+      validateToken();
+    }
 
-    const tabLogin = document.getElementById("tabLogin");
-    const tabRegister = document.getElementById("tabRegister");
-    const loginForm = document.getElementById("loginForm");
-    const registerForm = document.getElementById("registerForm");
-    const loginSubmitBtn = loginForm.querySelector(".btn-login");
-    const registerSubmitBtn = registerForm.querySelector(".btn-register");
-    const authMsg = document.getElementById("authMsg");
+    tabLogin.onclick = showLogin;
+    tabRegister.onclick = showRegister;
+    forgotPasswordLink.onclick = showForgot;
+    backToLoginFromForgot.onclick = showLogin;
+    backToLoginFromReset.onclick = showLogin;
 
-    tabLogin.onclick = () => {
-      authMsg.textContent = "";
-      loginForm.classList.remove("hidden");
-      registerForm.classList.add("hidden");
-      tabLogin.classList.add("btn-primary");
-      tabLogin.classList.remove("btn-secondary");
-      tabRegister.classList.add("btn-secondary");
-      tabRegister.classList.remove("btn-primary");
-    };
+    forgotForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setAuthMessage("");
+      forgotSubmitBtn.disabled = true;
+      const originalText = forgotSubmitBtn.textContent;
+      forgotSubmitBtn.textContent = "Sending...";
 
-    tabRegister.onclick = () => {
-      authMsg.textContent = "";
-      registerForm.classList.remove("hidden");
-      loginForm.classList.add("hidden");
-      tabRegister.classList.add("btn-primary");
-      tabRegister.classList.remove("btn-secondary");
-      tabLogin.classList.add("btn-secondary");
-      tabLogin.classList.remove("btn-primary");
-    };
+      try {
+        const email = document.getElementById("forgotEmail").value.trim();
+        const res = await fetch(`${API}/api/auth/forgot-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setAuthMessage(data.message || "Request failed");
+          return;
+        }
+
+        setAuthMessage(
+          data.message || "If an account exists for that email, a password reset link has been sent.",
+          "success"
+        );
+      } catch {
+        setAuthMessage("Unable to connect to server");
+      } finally {
+        forgotSubmitBtn.disabled = false;
+        forgotSubmitBtn.textContent = originalText;
+      }
+    });
+
+    resetForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setAuthMessage("");
+
+      if (!resetToken) {
+        setAuthMessage("Reset token is missing. Please use the link from your email again.");
+        return;
+      }
+
+      const newPassword = document.getElementById("resetPassword").value;
+      const confirmPassword = document.getElementById("resetConfirmPassword").value;
+
+      if (newPassword !== confirmPassword) {
+        setAuthMessage("Passwords do not match");
+        return;
+      }
+
+      resetSubmitBtn.disabled = true;
+      const originalText = resetSubmitBtn.textContent;
+      resetSubmitBtn.textContent = "Resetting...";
+
+      try {
+        const res = await fetch(`${API}/api/auth/reset-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: resetToken, newPassword })
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setAuthMessage(data.message || "Password reset failed");
+          return;
+        }
+
+        resetToken = null;
+        document.getElementById("resetPassword").value = "";
+        document.getElementById("resetConfirmPassword").value = "";
+        showLogin();
+        setAuthMessage(data.message || "Password reset successful. Please log in with your new password.", "success");
+      } catch {
+        setAuthMessage("Unable to connect to server");
+      } finally {
+        resetSubmitBtn.disabled = false;
+        resetSubmitBtn.textContent = originalText;
+      }
+    });
 
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      authMsg.textContent = "";
+      setAuthMessage("");
       loginSubmitBtn.disabled = true;
       loginSubmitBtn.textContent = "Signing In...";
 
@@ -379,9 +596,9 @@
           body: JSON.stringify({ email, password })
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          authMsg.textContent = data.message || "Login failed";
+          setAuthMessage(data.message || "Login failed");
           return;
         }
 
@@ -391,7 +608,7 @@
         else localStorage.removeItem("userProfileImage");
         window.location.href = "dashboard.html";
       } catch {
-        authMsg.textContent = "Unable to connect to server";
+        setAuthMessage("Unable to connect to server");
       } finally {
         loginSubmitBtn.disabled = false;
         loginSubmitBtn.textContent = "Login";
@@ -400,7 +617,7 @@
 
     registerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      authMsg.textContent = "";
+      setAuthMessage("");
       registerSubmitBtn.disabled = true;
       registerSubmitBtn.textContent = "Creating Account...";
 
@@ -415,9 +632,9 @@
           body: JSON.stringify({ name, email, password })
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          authMsg.textContent = data.message || "Registration failed";
+          setAuthMessage(data.message || "Registration failed");
           return;
         }
 
@@ -428,7 +645,7 @@
         else localStorage.removeItem("userProfileImage");
         window.location.href = "dashboard.html";
       } catch {
-        authMsg.textContent = "Unable to connect to server";
+        setAuthMessage("Unable to connect to server");
       } finally {
         registerSubmitBtn.disabled = false;
         registerSubmitBtn.textContent = "Create Account";

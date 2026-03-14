@@ -207,6 +207,56 @@ async function toPublicUser(user, req) {
   };
 }
 
+const DEFAULT_PASSWORD_RESET_MINUTES = 30;
+
+function getPasswordResetTtlMinutes() {
+  const rawValue = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || DEFAULT_PASSWORD_RESET_MINUTES);
+  if (Number.isFinite(rawValue) && rawValue >= 5 && rawValue <= 24 * 60) {
+    return rawValue;
+  }
+
+  return DEFAULT_PASSWORD_RESET_MINUTES;
+}
+
+function getAuthEmailConfig() {
+  const host = String(process.env.SMTP_HOST || "").trim();
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = String(process.env.SMTP_USER || "").trim();
+  const pass = String(process.env.SMTP_PASS || "").trim();
+  const secure = String(process.env.SMTP_SECURE || "").trim().toLowerCase() === "true" || port === 465;
+
+  const from = String(process.env.AUTH_FROM_EMAIL || process.env.SUGGESTIONS_FROM_EMAIL || user || "").trim();
+
+  return { host, port, secure, user, pass, from };
+}
+
+function tryRequireNodemailer() {
+  try {
+    // eslint-disable-next-line global-require
+    return require("nodemailer");
+  } catch {
+    return null;
+  }
+}
+
+function getPasswordResetBaseUrl(req) {
+  const configured = String(process.env.PASSWORD_RESET_URL_BASE || process.env.FRONTEND_URL || "").trim();
+  if (configured) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim();
+  const protocol = forwardedProto || req.protocol;
+  return `${protocol}://${req.get("host")}`.replace(/\/+$/, "");
+}
+
+function buildPasswordResetUrl(req, token) {
+  const baseUrl = getPasswordResetBaseUrl(req);
+  return `${baseUrl}/index.html#resetToken=${encodeURIComponent(token)}`;
+}
+
 router.post(
   "/register",
   [
@@ -287,6 +337,116 @@ router.post(
   })
 );
 
+router.post(
+  "/forgot-password",
+  [
+    body("email")
+      .isEmail()
+      .withMessage("Valid email is required")
+      .normalizeEmail()
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const { host, port, secure, user, pass, from } = getAuthEmailConfig();
+    if (!host || !user || !pass) {
+      throw new HttpError(
+        503,
+        "Email sending is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in backend/.env."
+      );
+    }
+
+    const nodemailer = tryRequireNodemailer();
+    if (!nodemailer) {
+      throw new HttpError(503, "Email dependency is missing. Run `cd backend && npm install nodemailer`.");
+    }
+
+    const responseMessage =
+      "If an account exists for that email, a password reset link has been sent.";
+    const email = String(req.body.email || "").trim().toLowerCase();
+
+    const resetUser = await User.findOne({ email }).select("email passwordResetTokenHash passwordResetTokenExpiresAt");
+    if (!resetUser) {
+      return res.json({ message: responseMessage });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const ttlMinutes = getPasswordResetTtlMinutes();
+
+    resetUser.passwordResetTokenHash = tokenHash;
+    resetUser.passwordResetTokenExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+    await resetUser.save();
+
+    const resetUrl = buildPasswordResetUrl(req, token);
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass }
+    });
+
+    const subject = "[Expense Tracker] Password reset";
+    const lines = [
+      "We received a request to reset your Expense Tracker password.",
+      "",
+      `Reset link (valid for ${ttlMinutes} minutes):`,
+      resetUrl,
+      "",
+      "If you did not request this, you can safely ignore this email."
+    ];
+
+    try {
+      await transporter.sendMail({
+        from: from || user,
+        to: resetUser.email,
+        subject,
+        text: lines.join("\n")
+      });
+    } catch (err) {
+      console.error("Password reset email failed:", err?.message || err);
+      resetUser.passwordResetTokenHash = "";
+      resetUser.passwordResetTokenExpiresAt = null;
+      await resetUser.save();
+    }
+
+    return res.json({ message: responseMessage });
+  })
+);
+
+router.post(
+  "/reset-password",
+  [
+    body("token").isString().notEmpty().withMessage("Reset token is required"),
+    body("newPassword")
+      .isString()
+      .withMessage("New password is required")
+      .isLength({ min: 6 })
+      .withMessage("New password must be at least 6 characters")
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const token = String(req.body.token || "").trim();
+    const newPassword = String(req.body.newPassword || "");
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const resetUser = await User.findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetTokenExpiresAt: { $gt: new Date() }
+    });
+
+    if (!resetUser) {
+      throw new HttpError(400, "Reset token is invalid or expired");
+    }
+
+    resetUser.password = await bcrypt.hash(newPassword, 10);
+    resetUser.passwordResetTokenHash = "";
+    resetUser.passwordResetTokenExpiresAt = null;
+    await resetUser.save();
+
+    res.json({ message: "Password reset successful. You can now log in with your new password." });
+  })
+);
+
 router.get(
   "/me",
   auth,
@@ -337,6 +497,8 @@ router.put(
     }
 
     user.password = await bcrypt.hash(String(newPassword), 10);
+    user.passwordResetTokenHash = "";
+    user.passwordResetTokenExpiresAt = null;
     await user.save();
 
     res.json({ message: "Password updated successfully" });
