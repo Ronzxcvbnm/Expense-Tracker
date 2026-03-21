@@ -1,0 +1,2 @@
+Google OAuth enabled. Callback URL: http://localhost:5000/api/auth/google/callback
+Server running on port 5000

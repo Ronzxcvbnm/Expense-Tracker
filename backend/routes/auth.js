@@ -23,6 +23,7 @@ const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
 const LOCAL_STORAGE_PREFIX = "local:";
 const S3_STORAGE_PREFIX = "s3:";
 const PROFILE_IMAGE_DIR = "profile-images";
+const DEFAULT_SMTP_TIMEOUT_MS = 8000;
 
 function getProfileImageStorageMode() {
   const mode = String(process.env.PROFILE_IMAGE_STORAGE || "auto")
@@ -100,6 +101,22 @@ function mapS3StorageError(err) {
   return new HttpError(503, `S3 initialization failed: ${errMessage || "unknown error"}`);
 }
 
+function getInlineProfileImageFallback(reason) {
+  const fallbackSetting = String(process.env.ALLOW_INLINE_PROFILE_IMAGE_FALLBACK || "")
+    .trim()
+    .toLowerCase();
+
+  if (fallbackSetting === "false") {
+    return null;
+  }
+
+  if (reason) {
+    console.warn(`Profile image storage fallback enabled: ${reason}`);
+  }
+
+  return { provider: "inline", bucket: null };
+}
+
 async function resolveProfileImageStorage() {
   const mode = getProfileImageStorageMode();
   if (mode === "local") {
@@ -111,12 +128,20 @@ async function resolveProfileImageStorage() {
 
   if (mode === "s3" || (mode === "auto" && isS3Configured())) {
     if (!isS3Configured()) {
+      const fallback = getInlineProfileImageFallback("S3 storage is not configured in the current environment.");
+      if (fallback) {
+        return fallback;
+      }
       throw new HttpError(503, "S3 storage is not configured. Set AWS_S3_BUCKET and AWS_REGION.");
     }
 
     try {
       await getSignedS3ReadUrl({ key: `${PROFILE_IMAGE_DIR}/healthcheck`, expiresInSeconds: 60 });
     } catch (err) {
+      const fallback = getInlineProfileImageFallback(mapS3StorageError(err).message);
+      if (fallback) {
+        return fallback;
+      }
       throw mapS3StorageError(err);
     }
 
@@ -137,11 +162,24 @@ async function resolveProfileImageStorage() {
     }
   } catch (err) {
     if (mode === "firebase") {
+      const fallback = getInlineProfileImageFallback(
+        err instanceof HttpError ? err.message : mapFirebaseStorageError(err).message
+      );
+      if (fallback) {
+        return fallback;
+      }
       if (err instanceof HttpError) {
         throw err;
       }
       throw mapFirebaseStorageError(err);
     }
+  }
+
+  const fallback = getInlineProfileImageFallback(
+    "Cloud profile image storage is unavailable, so inline image storage will be used locally."
+  );
+  if (fallback) {
+    return fallback;
   }
 
   throw new HttpError(
@@ -237,6 +275,35 @@ function tryRequireNodemailer() {
   } catch {
     return null;
   }
+}
+
+function getSmtpTimeoutMs() {
+  const rawValue = Number(process.env.SMTP_TIMEOUT_MS || DEFAULT_SMTP_TIMEOUT_MS);
+  if (Number.isFinite(rawValue) && rawValue >= 1000) {
+    return rawValue;
+  }
+
+  return DEFAULT_SMTP_TIMEOUT_MS;
+}
+
+function createMailTransporter(nodemailer, { host, port, secure, user, pass }) {
+  const timeoutMs = getSmtpTimeoutMs();
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs
+  });
+}
+
+function sendMailInBackground(transporter, mailOptions, errorLabel) {
+  transporter.sendMail(mailOptions).catch((err) => {
+    console.error(errorLabel, err?.message || err);
+  });
 }
 
 function getPasswordResetBaseUrl(req) {
@@ -378,12 +445,7 @@ router.post(
     await resetUser.save();
 
     const resetUrl = buildPasswordResetUrl(req, token);
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass }
-    });
+    const transporter = createMailTransporter(nodemailer, { host, port, secure, user, pass });
 
     const subject = "[Expense Tracker] Password reset";
     const lines = [
@@ -395,19 +457,16 @@ router.post(
       "If you did not request this, you can safely ignore this email."
     ];
 
-    try {
-      await transporter.sendMail({
+    sendMailInBackground(
+      transporter,
+      {
         from: from || user,
         to: resetUser.email,
         subject,
         text: lines.join("\n")
-      });
-    } catch (err) {
-      console.error("Password reset email failed:", err?.message || err);
-      resetUser.passwordResetTokenHash = "";
-      resetUser.passwordResetTokenExpiresAt = null;
-      await resetUser.save();
-    }
+      },
+      "Password reset email failed:"
+    );
 
     return res.json({ message: responseMessage });
   })
@@ -558,7 +617,15 @@ router.put(
           }
         });
       } catch (err) {
-        throw mapFirebaseStorageError(err);
+        const fallback = getInlineProfileImageFallback(
+          err instanceof HttpError ? err.message : mapFirebaseStorageError(err).message
+        );
+        if (fallback) {
+          profileImage = imageData;
+          objectPath = "";
+        } else {
+          throw mapFirebaseStorageError(err);
+        }
       }
     } else if (provider === "s3") {
       const objectKey = `profile-images/${req.user.id}/${Date.now()}-${crypto
@@ -573,10 +640,21 @@ router.put(
           cacheControl: "private, max-age=0, no-transform"
         });
       } catch (err) {
-        throw mapS3StorageError(err);
+        const fallback = getInlineProfileImageFallback(mapS3StorageError(err).message);
+        if (fallback) {
+          profileImage = imageData;
+          objectPath = "";
+        } else {
+          throw mapS3StorageError(err);
+        }
       }
 
-      objectPath = `${S3_STORAGE_PREFIX}${objectKey}`;
+      if (!profileImage) {
+        objectPath = `${S3_STORAGE_PREFIX}${objectKey}`;
+      }
+    } else if (provider === "inline") {
+      profileImage = imageData;
+      objectPath = "";
     } else {
       throw new HttpError(500, `Unsupported profile image storage provider: ${provider}`);
     }

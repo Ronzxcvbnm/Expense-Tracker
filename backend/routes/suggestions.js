@@ -6,6 +6,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 const User = require("../models/User");
 
 const router = express.Router();
+const DEFAULT_SMTP_TIMEOUT_MS = 8000;
 
 function getEmailConfig() {
   const host = String(process.env.SMTP_HOST || "").trim();
@@ -31,6 +32,35 @@ function tryRequireNodemailer() {
   } catch {
     return null;
   }
+}
+
+function getSmtpTimeoutMs() {
+  const rawValue = Number(process.env.SMTP_TIMEOUT_MS || DEFAULT_SMTP_TIMEOUT_MS);
+  if (Number.isFinite(rawValue) && rawValue >= 1000) {
+    return rawValue;
+  }
+
+  return DEFAULT_SMTP_TIMEOUT_MS;
+}
+
+function createMailTransporter(nodemailer, { host, port, secure, user, pass }) {
+  const timeoutMs = getSmtpTimeoutMs();
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs
+  });
+}
+
+function sendMailInBackground(transporter, mailOptions, errorLabel) {
+  transporter.sendMail(mailOptions).catch((err) => {
+    console.error(errorLabel, err?.message || err);
+  });
 }
 
 router.use(auth);
@@ -77,12 +107,7 @@ router.post(
       });
     }
 
-    const transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      auth: { user, pass }
-    });
+    const transporter = createMailTransporter(nodemailer, { host, port, secure, user, pass });
 
     const currentUser = await User.findById(req.user.id).select("name email").lean();
 
@@ -105,24 +130,20 @@ router.post(
       message
     ];
 
-    try {
-      await transporter.sendMail({
+    sendMailInBackground(
+      transporter,
+      {
         from: from || user,
         to,
         subject,
         text: lines.join("\n"),
         replyTo: submitterEmail || undefined
-      });
-    } catch {
-      return res.status(400).json({
-        message:
-          "Unable to send email right now. Check SMTP settings in backend/.env (and make sure your email provider allows SMTP)."
-      });
-    }
+      },
+      "Suggestion email failed:"
+    );
 
     return res.status(201).json({ message: "Suggestion sent. Thank you!" });
   })
 );
 
 module.exports = router;
-
