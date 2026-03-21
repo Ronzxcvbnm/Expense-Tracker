@@ -41,6 +41,11 @@ Fill in at least:
 - `JWT_SECRET`
 - `SESSION_SECRET`
 
+### Google OAuth + JWT (Optional)
+1. In Google Cloud Console, create an OAuth Client ID of type **Web application**.
+2. Add an **Authorized redirect URI** matching your backend callback, e.g. `http://localhost:5000/api/auth/google/callback`.
+3. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `backend/.env`.
+
 ### Suggestions to Email (Optional)
 The About page includes a Suggestions form that can email you feedback. To enable it:
 
@@ -71,6 +76,7 @@ npm run dev
 
 4. Open:
 - `http://localhost:5000/index.html`
+- (VS Code Live Server) `http://127.0.0.1:5500/frontend/index.html`
 
 ## Milestone 2 Documents
 - Integration plan: `docs/milestone-2-integration-plan.md`

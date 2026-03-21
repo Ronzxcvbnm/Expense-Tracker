@@ -1501,6 +1501,7 @@ tbody tr:hover {
         background: rgba(255, 255, 255, 0.96);
         backdrop-filter: blur(10px);
         display: flex;
+        flex-direction: row;
         align-items: stretch;
         justify-content: space-between;
         overflow: hidden;
@@ -1517,13 +1518,14 @@ tbody tr:hover {
     }
 
     .menu {
-        flex: 2 1 0;
+        flex: 5 1 0;
         min-width: 0;
         grid-template-columns: repeat(5, minmax(0, 1fr));
     }
 
     .menu-bottom {
-        flex: 0 0 auto;
+        flex: 1 1 0;
+        min-width: 0;
         grid-template-columns: 1fr;
         border-top: none;
         border-left: 1px solid rgba(191, 209, 228, 0.72);

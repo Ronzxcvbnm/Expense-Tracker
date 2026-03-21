@@ -2,17 +2,30 @@ const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const User = require("../models/User");
 
+function normalizeBaseUrl(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\/+$/, "");
+}
+
 const googleClientId = String(process.env.GOOGLE_CLIENT_ID || "").trim();
 const googleClientSecret = String(process.env.GOOGLE_CLIENT_SECRET || "").trim();
 const isGoogleOAuthConfigured = Boolean(googleClientId && googleClientSecret);
 
+const googleCallbackPath = "/api/auth/google/callback";
+const backendPublicUrl = normalizeBaseUrl(process.env.BACKEND_PUBLIC_URL);
+const googleCallbackUrlOverride = normalizeBaseUrl(process.env.GOOGLE_CALLBACK_URL);
+const googleCallbackUrl =
+  googleCallbackUrlOverride || (backendPublicUrl ? `${backendPublicUrl}${googleCallbackPath}` : googleCallbackPath);
+
 if (isGoogleOAuthConfigured) {
+  console.log(`Google OAuth enabled. Callback URL: ${googleCallbackUrl}`);
   passport.use(
     new GoogleStrategy(
       {
         clientID: googleClientId,
         clientSecret: googleClientSecret,
-        callbackURL: "/api/auth/google/callback"
+        callbackURL: googleCallbackUrl
       },
       async (accessToken, refreshToken, profile, done) => {
         try {

@@ -30,10 +30,20 @@ function buildAllowedOrigins() {
     return [];
   }
 
-  const origins = raw
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  function normalizeOrigin(value) {
+    const trimmed = String(value || "").trim();
+    if (!trimmed) {
+      return "";
+    }
+
+    try {
+      return new URL(trimmed).origin;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  const origins = raw.split(",").map(normalizeOrigin).filter(Boolean);
 
   const expanded = new Set();
   for (const origin of origins) {
